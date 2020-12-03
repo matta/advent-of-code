@@ -1,5 +1,5 @@
 (defun find-sum-to (sum list)
-"Returns two elements from LIST that add to SUM, or NIL if none exist."
+  "Returns two elements from LIST that add to SUM, or NIL if none exist."
   ;; For each A in LIST find a previously observed B in the hash table such
   ;; that A+B == SUM.  If found, return (A B).  Otherwise, set A in the
   ;; hash table and continue iterating.
