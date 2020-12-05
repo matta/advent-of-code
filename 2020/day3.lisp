@@ -1,22 +1,40 @@
-(ql:quickload :str)
-
 (defpackage :day3 (:use #:common-lisp))
 (in-package :day3)
 
 (declaim (optimize (debug 3)))
 
-(defun count-tree-encounters (str)
-  (with-input-from-string (stream str)
-    (loop for pos = 0 then (+ pos 3)
-          for line = (read-line stream nil)
-          while line
-          if (eql #\# (aref line (mod pos (length line))))
-            count line)))
+(defun lines-from-string (str)
+   (with-input-from-string (stream str)
+     (loop for line = (read-line stream nil)
+           while line
+           collect line into result
+           finally (return (coerce result 'vector)))))
+
+(defun count-tree-scenario (lines xinc yinc)
+  (loop for x = 0 then (+ x xinc)
+        for y = 0 then (+ y yinc)
+        while (< y (length lines))
+        for line = (aref lines y)
+        for xindex = (mod x (length line))
+        for ch = (aref line xindex)
+        if (eql #\# ch) count ch))
+
+(defun count-tree-encounters (str scenarios)
+  (let ((lines (lines-from-string str)))
+    (loop for (xinc yinc) in scenarios
+          for count = (count-scenario lines xinc yinc)
+          collect count into result
+          finally (return (apply #'* result)))))
+
+(defun example-answer ()
+  (count-tree-encounters *example-input* *scenarios*))
 
 (defun answer ()
-  (count-tree-encounters *input*))
+  (count-tree-encounters *input* *scenarios*))
 
-(defparameter *input-example*
+(defparameter *scenarios* '((1 1) (3 1) (5 1) (7 1) (1 2)))
+
+(defparameter *example-input*
   "..##.......
 #...#...#..
 .#....#..#.
