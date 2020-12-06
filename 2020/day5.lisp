@@ -37,13 +37,32 @@ When passed *INPUT* this computes the answer to part one of the problem."
           while line
           maximize (parse-seat-id line))))
 
+(defun parse-seat-ids (str)
+  "Parse boarding passes line by line from STR, return a list of seat IDs."
+  (with-input-from-string (in str)
+    (loop for line = (read-line in nil nil)
+          while line
+          collect (parse-seat-id line))))
+
+(defun find-my-seat-id (ids)
+  "From a list of seat Ids IDS return my seat id.
+My seat ID is the only missing ID -- i.e. discontiguous."
+  (let ((sorted (sort ids #'<)))
+    (loop for prev-id = (first sorted) then id
+          for id in sorted
+          when (> (- id prev-id) 1)
+          do (return (1+ prev-id)))))
+
 (defun test ()
   (assert (eql 567 (parse-seat-id "BFFFBBFRRR")))
   (assert (eql 119 (parse-seat-id "FFFBBBFRRR")))
   (assert (eql 820 (parse-seat-id "BBFFBBFRLL")))
 
-  ;; The answer to part one is 861.
-  (assert (eql 861 (find-highest-seat-id *input*))))
+  ;; My answer to part one is 861.
+  (assert (eql 861 (find-highest-seat-id *input*)))
+
+  ;; My answer to part two is 635.
+  (assert (eql 633 (find-my-seat-id (parse-seat-ids *input*)))))
 
 (defparameter *input* "BBFFFBBLLR
 BBFFFFFLRL
