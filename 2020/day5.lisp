@@ -6,8 +6,8 @@
 ;;;; Apology: Not enough comments.
 ;;;;
 
-(defpackage :day4 (:use #:common-lisp))
-(in-package :day4)
+(defpackage :day5 (:use #:common-lisp))
+(in-package :day5)
 
 (declaim (optimize (debug 3)))
 
