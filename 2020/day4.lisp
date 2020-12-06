@@ -66,13 +66,58 @@
 (defun parse-records (string &key (start 0) (end (length string)))
   (parse-records-low nil string start end))
 
+(defun get-field (record field-name)
+  (check-type field-name string)
+  (second (assoc field-name record :test #'equal)))
+
+(defun valid-height-p (str)
+  "Returns true if STR is a number followed by either cm or in.
+If cm, the number must be at least 150 and at most 193.
+If in, the number must be at least 59 and at most 76."
+  (and (every #'alphanumericp str)
+       (multiple-value-bind (value pos) (parse-integer str :junk-allowed t)
+         (let ((suffix (subseq str pos)))
+           (cond
+             ((equal suffix "cm")
+              (<= 150 value 193))
+             ((equal suffix "in")
+              (<= 59 value 76))
+             (t nil))))))
+
+(defun valid-hex-color-p (str)
+  (and (eql 7 (length str))
+       (eql #\# (aref str 0))
+       (every #'(lambda (ch) (digit-char-p ch 16))
+              (subseq str 1))))
+
+(defun valid-eye-color-p (str)
+  (member str '("amb" "blu" "brn" "gry" "grn" "hzl" "oth") :test #'equal))
+
+(defun valid-decimal-p (str low high)
+  (and (every #'digit-char-p str)
+       (<= low (parse-integer str) high)))
+
+(defun valid-passport-id-p (str)
+  (and (eql 9 (length str))
+       (every #'digit-char-p str)))
+
 (defun record-valid-p (record)
   (let ((keys (mapcar #'first record)))
-    (not (set-difference *required-fields* keys :test #'equal))))
+    (and (not (set-difference *required-fields* keys :test #'equal))
+         (valid-decimal-p (get-field record "byr") 1920 2002)
+         (valid-decimal-p (get-field record "iyr") 2010 2020)
+         (valid-decimal-p (get-field record "eyr") 2020 2030)
+         (valid-height-p (get-field record "hgt"))
+         (valid-hex-color-p (get-field record "hcl"))
+         (valid-eye-color-p (get-field record "ecl"))
+         (valid-passport-id-p (get-field record "pid")))))
 
 (defun count-valid-passports (string)
   (loop for record in (parse-records string)
         count (record-valid-p record)))
+
+(defun run ()
+  (count-valid-passports *input*))
 
 (defparameter *required-fields* '("byr" "iyr" "eyr" "hgt" "hcl" "ecl" "pid"))
 
@@ -91,6 +136,33 @@ hgt:179cm
 hcl:#cfa07d eyr:2025 pid:166559648
 iyr:2011 ecl:brn hgt:59in
 ")
+
+(defparameter *invalid-input* "eyr:1972 cid:100
+hcl:#18171d ecl:amb hgt:170 pid:186cm iyr:2018 byr:1926
+
+iyr:2019
+hcl:#602927 eyr:1967 hgt:170cm
+ecl:grn pid:012533040 byr:1946
+
+hcl:dab227 iyr:2012
+ecl:brn hgt:182cm pid:021572410 eyr:2020 byr:1992 cid:277
+
+hgt:59cm ecl:zzz
+eyr:2038 hcl:74454a iyr:2023
+pid:3556412378 byr:2007")
+
+(defparameter *valid-input* "pid:087499704 hgt:74in ecl:grn iyr:2012 eyr:2030 byr:1980
+hcl:#623a2f
+
+eyr:2029 ecl:blu cid:129 byr:1989
+iyr:2014 pid:896056539 hcl:#a97842 hgt:165cm
+
+hcl:#888785
+hgt:164cm byr:2001 iyr:2015 cid:88
+pid:545766238 ecl:hzl
+eyr:2022
+
+iyr:2010 hgt:158cm hcl:#b6652a ecl:blu byr:1944 eyr:2021 pid:093154719")
 
 (defparameter *input* "byr:1971
 iyr:2017 hgt:160cm
@@ -1088,4 +1160,6 @@ ecl:brn eyr:2024
                     ("hgt" "59in")))
                  (parse-records *example-input*)))
 
-  (assert (equal 2 (count-valid-passports *example-input*))))
+  (assert (equal 2 (count-valid-passports *example-input*)))
+  (assert (equal 0 (count-valid-passports *invalid-input*)))
+  (assert (equal 4 (count-valid-passports *valid-input*))))
