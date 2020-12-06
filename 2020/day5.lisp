@@ -5,10 +5,6 @@
 ;;;;
 ;;;; Apology: Not enough comments.
 ;;;;
-;;;; For this day I also tried to write this like a real-ish parser,
-;;;; instead of using "scripty" techniques like reading strings line by
-;;;; line, then splitting them, etc.  This made it longer and more complex
-;;;; than a minimal implementation.
 
 (defpackage :day4 (:use #:common-lisp))
 (in-package :day4)
