@@ -10,6 +10,12 @@
 ;;;;             I'm punishing myself or learning how to deal with
 ;;;;             lists-of-lists-of-lists or both.
 ;;;;
+;;;;             I also stayed away from mutable data structures.
+;;;;
+;;;;             For all of this I may have paid a heavy price price.
+;;;;             E.g. https://github.com/Andrew-William-Smith/advent-of-code/blob/master/day7.lisp
+;;;;             seems much simpler.
+;;;;
 ;;;; Disclaimer: I'm very new to the language.
 ;;;;
 ;;;; Apology: Not enough comments.
