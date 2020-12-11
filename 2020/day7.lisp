@@ -14,7 +14,8 @@
 ;;;;
 ;;;;             For all of this I may have paid a heavy price price.
 ;;;;             E.g. https://github.com/Andrew-William-Smith/advent-of-code/blob/master/day7.lisp
-;;;;             seems much simpler.
+;;;;             and https://gitlab.com/-/snippets/2047524 seem much
+;;;;             simpler.
 ;;;;
 ;;;; Disclaimer: I'm very new to the language.
 ;;;;
