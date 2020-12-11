@@ -212,20 +212,10 @@
 (defun contents-for-color (color bagspecs)
   (second (assoc color bagspecs)))
 
-(defun count-inner-bag (content bagspecs)
-  (let ((count (first content))
-        (color (second content)))
-    (* count (count-inner-bags-low color bagspecs))))
-
-(defun count-inner-bags-low (color bagspecs)
-  (assert (symbolp color))
-  (+ 1
-     (loop :for content in (contents-for-color color bagspecs)
-           :sum (count-inner-bag content bagspecs))))
-
 (defun count-inner-bags (color bagspecs)
-  ;; Subtract the outermost bag; all others contain.
-  (- (count-inner-bags-low color bagspecs) 1))
+  (assert (symbolp color))
+  (loop :for (count inner-color) in (contents-for-color color bagspecs)
+        :sum (* count (1+ (count-inner-bags inner-color bagspecs)))))
 
 (defparameter *tiny-input*
   "light red bags contain 1 bright white bag, 2 muted yellow bags.")
