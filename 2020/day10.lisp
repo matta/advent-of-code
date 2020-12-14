@@ -67,7 +67,9 @@ This computes the answer as required by Part One."
 ;;;; I found it difficult to reason through Part Two of this problem to an
 ;;;; almost embarassing degree.  I am afraid I'll submit this, then look at
 ;;;; other solutions, and find an extremely efficient one that I didn't
-;;;; think of.
+;;;; think of.  Update: Gah, exactly, this problem is not about programming
+;;;; but math: https://brilliant.org/wiki/tribonacci-sequence/.  Oh well,
+;;;; brute force is still under one millisecond.
 ;;;;
 ;;;; We must find all valid subsets given a list of adapters.  We're given
 ;;;; that the initial subset contains no duplicate adapters (i.e. when
