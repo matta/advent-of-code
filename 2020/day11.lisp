@@ -126,10 +126,10 @@ LLLLL.LLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.L
 (defmethod print-object ((object seats) stream)
   (print-unreadable-object (object stream :type t)
     (with-slots (grid) object
-      (loop :for row :below (array-dimension grid 0)
+      (loop :for y :below (array-dimension grid 0)
             :do (format stream "~&")
-            :do (loop :for col :below (array-dimension grid 1)
-                      :do (format stream "~a" (aref grid row col)))))))
+            :do (loop :for x :below (array-dimension grid 1)
+                      :do (format stream "~a" (aref grid y x)))))))
 
 (defun seats-equal (a b)
   (declare (seats a) (seats b))
@@ -152,11 +152,11 @@ LLLLL.LLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.L
   (declare (list lines))
   (make-instance 'seats :grid (make-grid lines)))
 
-(defun emptyp (row col grid)
-  (eql #\L (aref grid row col)))
+(defun emptyp (y x grid)
+  (eql #\L (aref grid y x)))
 
-(defun occupiedp (row col grid)
-  (eql #\# (aref grid row col)))
+(defun occupiedp (y x grid)
+  (eql #\# (aref grid y x)))
 
 (defun occupied-count (seats)
   (declare (seats seats))
@@ -164,68 +164,71 @@ LLLLL.LLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.L
     (loop for i from 0 below (array-total-size grid)
           count (eql #\# (row-major-aref grid i)))))
 
-(defun map-adjacents (function center-row center-col grid)
+(defun map-adjacents (function center-y center-x grid)
   (declare (function function)
-           (fixnum center-row)
-           (fixnum center-col)
+           (fixnum center-y)
+           (fixnum center-x)
            (array grid))
   (loop
-    for end-row = (array-dimension grid 0)
-    for end-col = (array-dimension grid 1)
-    for delta-row from -1 upto 1
-    for row = (+ center-row delta-row)
-    if (< -1 row end-row)
+    for end-y = (array-dimension grid 0)
+    for end-x = (array-dimension grid 1)
+    for delta-y from -1 upto 1
+    for y = (+ center-y delta-y)
+    if (< -1 y end-y)
       do (loop
-           for delta-col from -1 upto 1
-           for col = (+ center-col delta-col)
-           if (and (< -1 col end-col)
-                   (not (and (eql 0 delta-col)
-                             (eql 0 delta-row))))
-             do (funcall function row col grid))))
+           for delta-x from -1 upto 1
+           for x = (+ center-x delta-x)
+           if (and (< -1 x end-x)
+                   (not (and (eql 0 delta-x)
+                             (eql 0 delta-y))))
+             do (funcall function y x grid))))
 
-(defun count-adjacents (function center-row center-col grid)
+(defun count-adjacents (function center-y center-x grid)
   (declare (function function)
-           (fixnum center-row)
-           (fixnum center-col)
+           (fixnum center-y)
+           (fixnum center-x)
            (array grid))
   (let ((count 0))
-    (map-adjacents #'(lambda (row col grid)
-                       (declare (fixnum row) (fixnum col) (array grid))
-                       (when (funcall function row col grid)
+    (map-adjacents #'(lambda (y x grid)
+                       (declare (fixnum y) (fixnum x) (array grid))
+                       (when (funcall function y x grid)
                          (incf count)))
-                   center-row center-col grid)
+                   center-y center-x grid)
     count))
 
-(defun sit-down-p (row col grid)
-  (and (emptyp row col grid)
-       (eql 0 (count-adjacents #'occupiedp row col grid))))
+(defun sit-down-p (y x grid)
+  (and (emptyp y x grid)
+       (eql 0 (count-adjacents #'occupiedp y x grid))))
 
-(defun stand-up-p (row col grid)
-  (and (occupiedp row col grid)
-       (<= 4 (count-adjacents #'occupiedp row col grid))))
+(defparameter *stand-up-neighbor-threshold* nil)
 
-(defun step-cell (row col grid)
-  (declare (fixnum row) (fixnum col) (array grid))
+(defun stand-up-p (y x grid)
+  (and (occupiedp y x grid)
+       (<= *stand-up-neighbor-threshold*
+           (count-adjacents #'occupiedp y x grid))))
+
+(defun step-cell (y x grid)
+  (declare (fixnum y) (fixnum x) (array grid))
   (cond
-    ((sit-down-p row col grid) #\#)
-    ((stand-up-p row col grid) #\L)
-    (t (aref grid row col))))
+    ((sit-down-p y x grid) #\#)
+    ((stand-up-p y x grid) #\L)
+    (t (aref grid y x))))
 
 (defun step-seats (seats)
   (declare (seats seats))
   (with-slots (grid) seats
     (loop with new-grid = (make-array (array-dimensions grid))
-          for row from 0 below (array-dimension grid 0)
-          do (loop for col from 0 below (array-dimension grid 1)
-                   do (setf (aref new-grid row col)
-                            (step-cell row col grid)))
+          for y from 0 below (array-dimension grid 0)
+          do (loop for x from 0 below (array-dimension grid 1)
+                   do (setf (aref new-grid y x)
+                            (step-cell y x grid)))
           finally (return (make-instance 'seats :grid new-grid)))))
 
 (defun equal-grid (a b)
   (and (equal (array-dimensions a) (array-dimensions b))
-       (loop for row from 0 upto (1- (array-dimension a 1))
-             do (loop for col from 0 upto (1- (array-dimension a 0))
-                      do (if (not (eql (aref a row col) (aref b row col)))
+       (loop for y from 0 upto (1- (array-dimension a 1))
+             do (loop for x from 0 upto (1- (array-dimension a 0))
+                      do (if (not (eql (aref a y x) (aref b y x)))
                              (return nil))
                       finally (return t)))))
 
@@ -236,53 +239,59 @@ LLLLL.LLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.L
        ((seats-equal curr next) curr)
     ()))
 
+(defmacro with-phase-one (&rest body)
+  `(let ((*stand-up-neighbor-threshold* 4))
+     ,@body))
+
 (defun phase-one (input)
-  (occupied-count
-   (stabilize
-    (make-seats
-     (load-lines input)))))
+  (with-phase-one
+      (occupied-count
+       (stabilize
+        (make-seats
+         (load-lines input))))))
 
 (defun test ()
-  (assert (seats-equal (step-seats
-                        (make-seats
-                         (load-lines *example-input*)))
-                       (make-seats '("#.##.##.##"
-                                     "#######.##"
-                                     "#.#.#..#.."
-                                     "####.##.##"
-                                     "#.##.##.##"
-                                     "#.#####.##"
-                                     "..#.#....."
-                                     "##########"
-                                     "#.######.#"
-                                     "#.#####.##"))))
-  (assert (seats-equal (step-seats
-                        (step-seats
-                         (make-seats
-                          (load-lines *example-input*))))
-                       (make-seats '("#.LL.L#.##"
-                                     "#LLLLLL.L#"
-                                     "L.L.L..L.."
-                                     "#LLL.LL.L#"
-                                     "#.LL.LL.LL"
-                                     "#.LLLL#.##"
-                                     "..L.L....."
-                                     "#LLLLLLLL#"
-                                     "#.LLLLLL.L"
-                                     "#.#LLLL.##"))))
-  (assert (seats-equal (stabilize
-                        (make-seats
-                         (load-lines *example-input*)))
-                       (make-seats '("#.#L.L#.##"
-                                     "#LLL#LL.L#"
-                                     "L.#.L..#.."
-                                     "#L##.##.L#"
-                                     "#.#L.LL.LL"
-                                     "#.#L#L#.##"
-                                     "..L.L....."
-                                     "#L#L##L#L#"
-                                     "#.LLLLLL.L"
-                                     "#.#L#L#.##"))))
+  (with-phase-one
+      (assert (seats-equal (step-seats
+                            (make-seats
+                             (load-lines *example-input*)))
+                           (make-seats '("#.##.##.##"
+                                         "#######.##"
+                                         "#.#.#..#.."
+                                         "####.##.##"
+                                         "#.##.##.##"
+                                         "#.#####.##"
+                                         "..#.#....."
+                                         "##########"
+                                         "#.######.#"
+                                         "#.#####.##"))))
+    (assert (seats-equal (step-seats
+                          (step-seats
+                           (make-seats
+                            (load-lines *example-input*))))
+                         (make-seats '("#.LL.L#.##"
+                                       "#LLLLLL.L#"
+                                       "L.L.L..L.."
+                                       "#LLL.LL.L#"
+                                       "#.LL.LL.LL"
+                                       "#.LLLL#.##"
+                                       "..L.L....."
+                                       "#LLLLLLLL#"
+                                       "#.LLLLLL.L"
+                                       "#.#LLLL.##"))))
+    (assert (seats-equal (stabilize
+                          (make-seats
+                           (load-lines *example-input*)))
+                         (make-seats '("#.#L.L#.##"
+                                       "#LLL#LL.L#"
+                                       "L.#.L..#.."
+                                       "#L##.##.L#"
+                                       "#.#L.LL.LL"
+                                       "#.#L#L#.##"
+                                       "..L.L....."
+                                       "#L#L##L#L#"
+                                       "#.LLLLLL.L"
+                                       "#.#L#L#.##")))))
 
   (assert (eql 37 (phase-one *example-input*)))
   (assert (eql 2406 (phase-one *input*))))
