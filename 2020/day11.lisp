@@ -1,5 +1,5 @@
 ;;
-;; Day 10 of Advent of Code 2020, in Common Lisp.  See
+;; Day 11 of Advent of Code 2020, in Common Lisp.  See
 ;; https://adventofcode.com/2020/day/11 for the problem statement.
 ;;
 ;; I'm using only standard Common Lisp functions; no external packages.
@@ -121,154 +121,132 @@ LLLLL.LLLL.LLLL.LLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLL.LLLL.LLLLLLLLLLLLLLLL.LLLL.L
 LLLLL.LLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLL")
 
 (defclass seats ()
-  ((grid :initarg :grid)))
+  ((grid :initarg :grid)
+   (phase :initarg :phase)))
 
 (defmethod print-object ((object seats) stream)
   (print-unreadable-object (object stream :type t)
-    (with-slots (grid) object
+    (with-slots (grid phase) object
+      :do (format stream "~&phase: ~a~&" phase)
       (loop :for y :below (array-dimension grid 0)
             :do (format stream "~&")
             :do (loop :for x :below (array-dimension grid 1)
                       :do (format stream "~a" (aref grid y x)))))))
 
 (defun seats-equal (a b)
-  (declare (seats a) (seats b))
-  (equalp (slot-value a 'grid)
-          (slot-value b 'grid)))
+  (and (equalp (slot-value a 'grid)
+               (slot-value b 'grid))
+       (eq (slot-value a 'phase)
+           (slot-value b 'phase))))
 
 (defun load-lines (str)
-  (declare (string str))
   (with-input-from-string (in str)
     (loop for line = (read-line in nil nil)
           while line
           collect line)))
 
 (defun make-grid (lines)
-  (declare (list lines))
   (make-array (list (length lines) (length (first lines)))
               :initial-contents lines))
 
-(defun make-seats (lines)
-  (declare (list lines))
-  (make-instance 'seats :grid (make-grid lines)))
+(defun make-seats (lines phase)
+  (make-instance 'seats :grid (make-grid lines)
+                        :phase phase))
 
-(defun emptyp (y x grid)
-  (eql #\L (aref grid y x)))
+;; (defun emptyp (y x grid)
+;;   (eql #\L (aref grid y x)))
 
-(defun occupiedp (y x grid)
-  (eql #\# (aref grid y x)))
+;; (defun occupiedp (y x grid)
+;;   (eql #\# (aref grid y x)))
 
 (defun occupied-count (seats)
-  (declare (seats seats))
   (with-slots (grid) seats
     (loop for i from 0 below (array-total-size grid)
           count (eql #\# (row-major-aref grid i)))))
 
-(defun map-adjacents (function center-y center-x grid)
-  (declare (function function)
-           (fixnum center-y)
-           (fixnum center-x)
-           (array grid))
-  (loop
-    for end-y = (array-dimension grid 0)
-    for end-x = (array-dimension grid 1)
-    for delta-y from -1 upto 1
-    for y = (+ center-y delta-y)
-    if (< -1 y end-y)
-      do (loop
-           for delta-x from -1 upto 1
-           for x = (+ center-x delta-x)
-           if (and (< -1 x end-x)
-                   (not (and (eql 0 delta-x)
-                             (eql 0 delta-y))))
-             do (funcall function y x grid))))
+(defun look (y x dy dx adjacent-only grid)
+  (loop for y2 = (+ y dy)
+        for x2 = (+ x dx)
+        for ch = (if (array-in-bounds-p grid y2 x2)
+                  (aref grid y2 x2)
+                  (return nil))
+        do (cond
+             ((eql ch #\#) (return t))  ; occupied
+             ((or (eql ch #\L)          ; either empty
+                  adjacent-only)        ; or adjacent squares only
+              (return nil))
+             (t (setf y y2)             ; keep looking
+                (setf x x2)))))
 
-(defun count-adjacents (function center-y center-x grid)
-  (declare (function function)
-           (fixnum center-y)
-           (fixnum center-x)
-           (array grid))
-  (let ((count 0))
-    (map-adjacents #'(lambda (y x grid)
-                       (declare (fixnum y) (fixnum x) (array grid))
-                       (when (funcall function y x grid)
-                         (incf count)))
-                   center-y center-x grid)
-    count))
+(defun count-nearby-occupants (y x adjacent-only grid)
+  (loop for (dy dx) in '((-1 -1) (-1 0) (-1 1)
+                         (0 -1) (0 1)
+                         (1 -1) (1 0) (1 1))
+        count (look y x dy dx adjacent-only grid)))
 
-(defun sit-down-p (y x grid)
-  (and (emptyp y x grid)
-       (eql 0 (count-adjacents #'occupiedp y x grid))))
-
-(defparameter *stand-up-neighbor-threshold* nil)
-
-(defun stand-up-p (y x grid)
-  (and (occupiedp y x grid)
-       (<= *stand-up-neighbor-threshold*
-           (count-adjacents #'occupiedp y x grid))))
-
-(defun step-cell (y x grid)
-  (declare (fixnum y) (fixnum x) (array grid))
-  (cond
-    ((sit-down-p y x grid) #\#)
-    ((stand-up-p y x grid) #\L)
-    (t (aref grid y x))))
+(defun step-cell (y x phase grid)
+  (let ((state (aref grid y x)))
+    (if (eql state #\.)
+        #\.
+        (let* ((adjacent-only (ecase phase
+                                (phase-one t)
+                                (phase-two nil)))
+               (stand-threshold (ecase phase
+                                  (phase-one 4)
+                                  (phase-two 5)))
+               (nearby (count-nearby-occupants y x adjacent-only grid)))
+          (ecase state
+            (#\L (if (zerop nearby) #\# #\L))
+            (#\# (if (>= nearby stand-threshold) #\L #\#)))))))
 
 (defun step-seats (seats)
-  (declare (seats seats))
-  (with-slots (grid) seats
+  (with-slots (grid phase) seats
     (loop with new-grid = (make-array (array-dimensions grid))
           for y from 0 below (array-dimension grid 0)
           do (loop for x from 0 below (array-dimension grid 1)
                    do (setf (aref new-grid y x)
-                            (step-cell y x grid)))
-          finally (return (make-instance 'seats :grid new-grid)))))
-
-(defun equal-grid (a b)
-  (and (equal (array-dimensions a) (array-dimensions b))
-       (loop for y from 0 upto (1- (array-dimension a 1))
-             do (loop for x from 0 upto (1- (array-dimension a 0))
-                      do (if (not (eql (aref a y x) (aref b y x)))
-                             (return nil))
-                      finally (return t)))))
+                            (step-cell y x phase grid)))
+          finally (return (make-instance 'seats :grid new-grid
+                                                :phase phase)))))
 
 (defun stabilize (seats)
-  (declare (seats seats))
   (do* ((curr seats next)
         (next (step-seats curr) (step-seats curr)))
        ((seats-equal curr next) curr)
     ()))
 
-(defmacro with-phase-one (&rest body)
-  `(let ((*stand-up-neighbor-threshold* 4))
-     ,@body))
+(defun phase-x (input phase)
+  (occupied-count
+   (stabilize
+    (make-seats (load-lines input) phase))))
 
 (defun phase-one (input)
-  (with-phase-one
-      (occupied-count
-       (stabilize
-        (make-seats
-         (load-lines input))))))
+  (phase-x input 'phase-one))
+
+(defun phase-two (input)
+  (phase-x input 'phase-two))
 
 (defun test ()
-  (with-phase-one
-      (assert (seats-equal (step-seats
-                            (make-seats
-                             (load-lines *example-input*)))
-                           (make-seats '("#.##.##.##"
-                                         "#######.##"
-                                         "#.#.#..#.."
-                                         "####.##.##"
-                                         "#.##.##.##"
-                                         "#.#####.##"
-                                         "..#.#....."
-                                         "##########"
-                                         "#.######.#"
-                                         "#.#####.##"))))
+  (assert (seats-equal (step-seats
+                        (make-seats
+                         (load-lines *example-input*)
+                         'phase-one))
+                       (make-seats '("#.##.##.##"
+                                     "#######.##"
+                                     "#.#.#..#.."
+                                     "####.##.##"
+                                     "#.##.##.##"
+                                     "#.#####.##"
+                                     "..#.#....."
+                                     "##########"
+                                     "#.######.#"
+                                     "#.#####.##")
+                                   'phase-one)))
     (assert (seats-equal (step-seats
                           (step-seats
                            (make-seats
-                            (load-lines *example-input*))))
+                            (load-lines *example-input*)
+                            'phase-one)))
                          (make-seats '("#.LL.L#.##"
                                        "#LLLLLL.L#"
                                        "L.L.L..L.."
@@ -278,10 +256,12 @@ LLLLL.LLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.L
                                        "..L.L....."
                                        "#LLLLLLLL#"
                                        "#.LLLLLL.L"
-                                       "#.#LLLL.##"))))
+                                       "#.#LLLL.##")
+                                     'phase-one)))
     (assert (seats-equal (stabilize
                           (make-seats
-                           (load-lines *example-input*)))
+                           (load-lines *example-input*)
+                           'phase-one))
                          (make-seats '("#.#L.L#.##"
                                        "#LLL#LL.L#"
                                        "L.#.L..#.."
@@ -291,7 +271,12 @@ LLLLL.LLLLLLLLLLLLLLLL.LLLLLLLLL.LLLLLLL.LLLLL.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.L
                                        "..L.L....."
                                        "#L#L##L#L#"
                                        "#.LLLLLL.L"
-                                       "#.#L#L#.##")))))
+                                       "#.#L#L#.##")
+                                     'phase-one)))
 
   (assert (eql 37 (phase-one *example-input*)))
-  (assert (eql 2406 (phase-one *input*))))
+  (assert (eql 2406 (phase-one *input*)))
+
+  ;; TODO: test phase-two rules.
+  (assert (eql 26 (phase-two *example-input*)))
+  (assert (eql 2149 (phase-two *input*))))
