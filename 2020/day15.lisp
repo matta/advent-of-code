@@ -26,25 +26,18 @@
   (mapcar #'parse-integer (split-by-commas input)))
 
 (defun play-game (numbers turns)
-  (let ((turn 1)
-        spoken
+  (let (spoken
         prior-turn
         (memory (make-hash-table)))
-    (dolist (number numbers)
-      (setf spoken number)
-      (format t "~&turn ~s: spoken ~s.~%" turn spoken)
-      (setf prior-turn (gethash spoken memory nil))
-      (setf (gethash spoken memory) turn)
-      (incf turn))
-    (loop while (<= turn turns)
+    (loop for turn from 1 upto turns
           do (format t "~&turn ~s: prior-turn ~s." turn prior-turn)
-          do (setf spoken (if prior-turn
-                              (- turn prior-turn 1)
-                              0))
+          do (setf spoken (cond
+                            (numbers (pop numbers))
+                            (prior-turn (- turn prior-turn 1))
+                            (t 0)))
           do (format t "~%turn ~s: spoken ~s.~%" turn spoken)
           do (setf prior-turn (gethash spoken memory nil))
-          do (setf (gethash spoken memory) turn)
-          do (incf turn))
+          do (setf (gethash spoken memory) turn))
     spoken))
 
 (defun part-one (input turns)
