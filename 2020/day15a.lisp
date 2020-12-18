@@ -1,12 +1,12 @@
 ;;
-;; Day 15 of Advent of Code 2020, in Common Lisp.  See
-;; https://adventofcode.com/2020/day/15 for the problem statement.
+;; Day 15 of Advent of Code 2020, in Common Lisp.  This solves Part One.
+;; See https://adventofcode.com/2020/day/15 for the problem statement.
 ;;
 ;; I'm using only standard Common Lisp functions; no external packages.
 ;;
 
-(defpackage :day15 (:use #:common-lisp))
-(in-package :day15)
+(defpackage :day15a (:use #:common-lisp))
+(in-package :day15a)
 
 (defparameter *example-input* "0,3,6")
 
