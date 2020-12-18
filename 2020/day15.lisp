@@ -30,14 +30,13 @@
         prior-turn
         (memory (make-hash-table)))
     (loop for turn from 1 upto turns
-          do (format t "~&turn ~s: prior-turn ~s." turn prior-turn)
-          do (setf spoken (cond
-                            (numbers (pop numbers))
-                            (prior-turn (- turn prior-turn 1))
-                            (t 0)))
-          do (format t "~%turn ~s: spoken ~s.~%" turn spoken)
-          do (setf prior-turn (gethash spoken memory nil))
-          do (setf (gethash spoken memory) turn))
+          do (progn
+               (setf spoken (cond
+                              (numbers (pop numbers))
+                              (prior-turn (- turn prior-turn 1))
+                              (t 0)))
+               (setf prior-turn (gethash spoken memory nil))
+               (setf (gethash spoken memory) turn)))
     spoken))
 
 (defun part-one (input turns)
