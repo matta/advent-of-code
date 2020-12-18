@@ -672,11 +672,11 @@ mem[17457] = 15488682
         mask
         mask-ones
         (memory (make-hash-table)))
-    (format t "~&~S~%" program)
+    ;; (format t "~&~S~%" program)
     (loop for instruction in program
           for op = (first instruction)
           for args = (rest instruction)
-          do (format t "~&op ~S args ~S~%" op args)
+          ;; do (format t "~&op ~S args ~S~%" op args)
           do (ecase op
                (mask
                 (setf mask (getf args 'mask))
@@ -713,11 +713,8 @@ mem[17457] = 15488682
           do (setf result (logior result (ash 1 dest-index)))
         finally (return result)))
 
-(defun print-binary (number)
-  (format t "~&number ~B~%" number))
-
 (defun float-bits (function mask)
-  (format t "~&floating bits ~b (decimal ~d hex ~x)~%" mask mask mask)
+  ;; (format t "~&floating bits ~b (decimal ~d hex ~x)~%" mask mask mask)
   (loop with indices = (bit-indices mask)
         for n below (ash 1 (length indices))
         do (funcall function (project-bits n indices))))
@@ -728,22 +725,22 @@ mem[17457] = 15488682
         (mask 0)
         (mask-ones 0)
         (memory (make-hash-table)))
-    (format t "~&~S~%" program)
+    ;; (format t "~&~S~%" program)
     (loop for instruction in program
           for op = (first instruction)
           for args = (rest instruction)
-          do (format t "~&op ~S args ~S~%" op args)
+          ;; do (format t "~&op ~S args ~S~%" op args)
           do (ecase op
                (mask
                 (setf mask (getf args 'mask))
-                (format t "~&mask now ~b~%" mask)
+                ;; (format t "~&mask now ~b~%" mask)
                 (setf mask-ones (getf args 'ones)))
-                (format t "~&mask-ones now ~b~%" mask-ones)
+                ;; (format t "~&mask-ones now ~b~%" mask-ones)
                (mem
                 (destructuring-bind (address-ones value) args
                   (setf address-ones (logand (logior address-ones mask-ones)
                                              (lognot mask)))
-                  (format t "~&address-ones ~B~%" address-ones)
+                  ;; (format t "~&address-ones ~B~%" address-ones)
                   (flet ((write-value (xaddress)
                            (let ((address (logior xaddress address-ones)))
                              ;; (format t "~&write-value ~d; xaddress ~b address ~b (~d)~%"
