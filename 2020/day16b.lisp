@@ -356,9 +356,6 @@ nearby tickets:
 (defun notes-nearby-tickets (notes)
   (cdr (assoc :nearby-tickets notes)))
 
-(defun rules-bounds (rules)
-  (cdr (assoc :bounds rules)))
-
 (defun rules-to-sexp (rules)
   (cons 'or (loop for rule in rules
                   collect (bounds-to-sexp (rule-bounds rule)))))
