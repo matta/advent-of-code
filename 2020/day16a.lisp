@@ -317,8 +317,8 @@ nearby tickets:
 
 (defun parse-rule (input)
   (destructuring-bind (name rest) (split-sequence ": " input)
-    (list (cons 'name name)
-          (cons 'bounds (parse-bounds rest)))))
+    (list (cons :name name)
+          (cons :bounds (parse-bounds rest)))))
 
 (defun parse-rules (input)
   (loop for rule in (split-sequence #(#\Newline) input)
@@ -333,9 +333,51 @@ nearby tickets:
         unless (equal "" line)
           collect (parse-ticket line)))
 
-(defun parse-input (input)
+(defun parse-notes (input)
   (destructuring-bind (a b c) (split-sequence #(#\Newline #\Newline) input)
-    (list (cons 'rules (parse-rules a))
-          (cons 'your-ticket (parse-tickets b))
-          (cons 'nearby-tickets (parse-tickets c)))))
+    (list (cons :rules (parse-rules a))
+          (cons :your-ticket (parse-tickets b))
+          (cons :nearby-tickets (parse-tickets c)))))
 
+(defun rule-bounds (rules)
+  (cdr (assoc :bounds rules)))
+
+(defun bounds-to-sexp (bounds)
+  (cons 'or
+        (loop for bound in bounds
+              collect `(<= ,(car bound) value ,(cdr bound)))))
+
+(defun notes-rules (notes)
+  (cdr (assoc :rules notes)))
+
+(defun notes-your-ticket (notes)
+  (cdr (assoc :your-ticket notes)))
+
+(defun notes-nearby-tickets (notes)
+  (cdr (assoc :nearby-tickets notes)))
+
+(defun rules-bounds (rules)
+  (cdr (assoc :bounds rules)))
+
+(defun rules-to-sexp (rules)
+  (cons 'or (loop for rule in rules
+                  collect (bounds-to-sexp (rule-bounds rule)))))
+
+(defun rules-to-valid-value-p (rules)
+  (eval `(lambda (value)
+           (declare (type fixnum value))
+           ,(rules-to-sexp rules))))
+
+(defun notes-to-valid-value-p (notes)
+  (rules-to-valid-value-p (notes-rules notes)))
+
+(defun ticket-scanning-error-rate (notes)
+  (loop with valid-value-p = (rules-to-valid-value-p (notes-rules notes))
+        for ticket in (notes-nearby-tickets notes)
+        sum (reduce #'+ (remove-if valid-value-p ticket))))
+
+(defun test ()
+  (assert (eql 71 (ticket-scanning-error-rate
+                   (parse-notes *example-input*))))
+  (assert (eql 25916 (ticket-scanning-error-rate
+                      (parse-notes *input*)))))
