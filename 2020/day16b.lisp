@@ -1,12 +1,12 @@
 ;;
-;; Day 16 of Advent of Code 2020, in Common Lisp.  This solves Part One.
+;; Day 16 of Advent of Code 2020, in Common Lisp.  This solves Part Two.
 ;; See https://adventofcode.com/2020/day/16 for the problem statement.
 ;;
 ;; I'm using only standard Common Lisp functions; no external packages.
 ;;
 
-(defpackage :day16a (:use #:common-lisp))
-(in-package :day16a)
+(defpackage :day16b (:use #:common-lisp))
+(in-package :day16b)
 
 (defparameter *example-input*
   "class: 1-3 or 5-7
