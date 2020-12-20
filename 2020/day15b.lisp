@@ -22,16 +22,11 @@
   (mapcar #'parse-integer (split-by-commas input)))
 
 (defun play-game (numbers turns)
-  ;; Brute force implementation.  Is there a faster way?  Maybe, but this
-  ;; takes five seconds to run for me; it isn't worth my time to optimize
-  ;; this.
   (do ((memory (make-hash-table))
        (turn 1 (1+ turn))
        spoken
        prior-turn)
-      ((> turn turns)
-       (format t "~&memory has ~s entries.~%" (hash-table-count memory))
-       spoken)
+      ((> turn turns) spoken)
     (setf spoken (cond
                    (numbers (pop numbers))
                    (prior-turn (- turn prior-turn 1))
