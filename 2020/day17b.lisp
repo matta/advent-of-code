@@ -23,28 +23,26 @@
 ..#####.
 ######.#")
 
-(deftype point () '(simple-array fixnum (3)))
+(deftype point () '(cons))
 
 (defun make-point (z y x)
-  (make-array 3 :element-type 'fixnum :initial-contents (list z y x)))
+  (list z y x))
 
 (defun point-z (point)
   (declare (type point point))
-  (aref point 0))
+  (first point))
 
 (defun point-y (point)
   (declare (type point point))
-  (aref point 1))
+  (second point))
 
 (defun point-x (point)
   (declare (type point point))
-  (aref point 2))
+  (third point))
 
 (defun point-equal (a b)
   (declare (type point a) (type point b))
-  (and (eql (aref a 0) (aref b 0))
-       (eql (aref a 1) (aref b 1))
-       (eql (aref a 2) (aref b 2))))
+  (equal a b))
 
 (defun split-sequence (needle haystack &key (start 0) end)
   (loop with needle-length = (length needle)
@@ -57,27 +55,33 @@
         until (null pos)))
 
 (defun parse-input (input)
-  (loop for line in (split-sequence '(#\Newline) input)
+  (loop with points = (make-hash-table :test #'equal)
+        for line in (split-sequence '(#\Newline) input)
         for y from 0
         append (loop for ch across line
                      for x from 0
-                     if (eql ch #\#)
-                       collect (make-point 0 y x))))
+                     do (when (eql ch #\#)
+                          (setf (gethash (make-point 0 y x) points) t)))
+        finally (return points)))
 
-(defun active-p (cube cubes)
-  (declare (type point cube))
-  (member cube cubes :test #'point-equal))
+(defun set-active (point points)
+  (setf (gethash point points) t))
+
+(defun active-p (point points)
+  (declare (type point point))
+  (gethash point points nil))
 
 (defun shift-point (point shift)
+  (declare (type point point))
   (make-point (+ shift (point-z point))
               (+ shift (point-y point))
               (+ shift (point-x point))))
 
 (defun get-bounds (cubes)
-  (loop for c in cubes
-        for z = (point-z c)
-        for y = (point-y c)
-        for x = (point-x c)
+  (loop for p being each hash-key of cubes
+        for z = (point-z p)
+        for y = (point-y p)
+        for x = (point-x p)
         minimize z into min-z fixnum
         minimize y into min-y fixnum
         minimize x into min-x fixnum
@@ -95,7 +99,7 @@
      (shift-point start -1)
      (shift-point end 1))))
 
-(defun for-each-cube (function bounds)
+(defun for-each-point (function bounds)
   (destructuring-bind (start end) bounds
     (declare (type point start) (type point end))
     (loop for z from (point-z start) below (point-z end)
@@ -103,52 +107,55 @@
                    do (loop for x from (point-x start) below (point-x end)
                             do (funcall function (make-point z y x)))))))
 
-(defun neighbor-bounds (cube)
-  (list (shift-point cube -1)
-        (shift-point cube 2)))
+(defun neighbor-bounds (point)
+  (list (shift-point point -1)
+        (shift-point point 2)))
 
-(defun count-active-neighbors (cube cubes)
-  (declare (type point cube))
+(defun count-active-neighbors (point points)
+  (declare (type point point))
   (let ((count 0))
-    (for-each-cube #'(lambda (neighbor)
-                       (when (and (not (point-equal neighbor cube))
-                                  (active-p neighbor cubes))
+    (for-each-point #'(lambda (neighbor)
+                       (when (and (not (point-equal neighbor point))
+                                  (active-p neighbor points))
                          (incf count)))
-                   (neighbor-bounds cube))
+                   (neighbor-bounds point))
     count))
 
-(defun transition-to-active-p (cube cubes)
-  (let ((count (count-active-neighbors cube cubes)))
-    (if (active-p cube cubes)
+(defun transition-to-active-p (point points)
+  (let ((count (count-active-neighbors point points)))
+    (if (active-p point points)
         (or (eql count 2) (eql count 3))
         (eql count 3))))
 
-(defun format-cubes (destination cubes)
-  (destructuring-bind (low high) (get-bounds cubes)
+(defun format-points (destination points)
+  (destructuring-bind (low high) (get-bounds points)
     (loop for z from (point-z low) below (point-z high)
           do (format destination "~&z=~d~%" z)
           do (loop for y from (point-y low) below (point-y high)
                    do (loop for x from (point-x low) below (point-x high)
                             do (format destination "~c"
-                                       (if (active-p (make-point z y x) cubes)
+                                       (if (active-p (make-point z y x) points)
                                            #\#
                                            #\.))
                             finally (format destination "~%"))
                    finally (format destination "~%")))))
 
-(defun cycle1 (cubes)
-  (let ((next-cubes))
-    (for-each-cube #'(lambda (cube)
-                       (when (transition-to-active-p cube cubes)
-                         (push cube next-cubes)))
-                   (grow-bounds (get-bounds cubes)))
-    next-cubes))
+(defun cycle1 (points)
+  (let ((next-points (make-hash-table :test #'equal)))
+    (for-each-point #'(lambda (point)
+                        (when (transition-to-active-p point points)
+                          (set-active point next-points)))
+                    (grow-bounds (get-bounds points)))
+    next-points))
 
-(defun cycle (count cubes)
-  (dotimes (unused count cubes)
-    (setf cubes (cycle1 cubes))))
+(defun cycle (count points)
+  (dotimes (unused count points)
+    (setf points (cycle1 points))))
 
 (defun test ()
-  (assert (equal 112 (length (cycle 6 (parse-input *example-input*)))))
-  (assert (equal 388 (length (cycle 6 (parse-input *input*))))))
-
+  (assert (equal 112 (hash-table-count
+                      (cycle
+                       6 (parse-input *example-input*)))))
+  (assert (equal 388 (hash-table-count
+                      (cycle
+                       6 (parse-input *input*))))))
