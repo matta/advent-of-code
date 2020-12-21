@@ -380,13 +380,6 @@ nearby tickets:
                      for high fixnum = (cdr range)
                      thereis (<= low value high))))
 
-(defun some-values-valid-for-rule-p (rule values)
-  (loop with ranges = (rule-ranges rule)
-        with low fixnum = (car ranges)
-        with high fixnum = (cdr ranges)
-        for value fixnum in values
-        always (<= low value high)))
-
 (defun rotate (list-of-lists)
   (apply #'mapcar #'list list-of-lists))
 
