@@ -312,8 +312,7 @@ nearby tickets:
     (cons (parse-integer low) (parse-integer high))))
 
 (defun parse-ranges (input)
-  (loop for range in (split-sequence " or " input)
-        collect (parse-range range)))
+  (mapcar #'parse-range (split-sequence " or " input)))
 
 (defun parse-field (input)
   (destructuring-bind (name rest) (split-sequence ": " input)
@@ -321,17 +320,16 @@ nearby tickets:
           (cons :ranges (parse-ranges rest)))))
 
 (defun parse-fields (input)
-  (loop for field in (split-sequence #(#\Newline) input)
-        collect (parse-field field)))
+  (mapcar #'parse-field (split-sequence '(#\Newline) input)))
 
 (defun parse-ticket (line)
-  (mapcar #'parse-integer
-          (split-sequence "," line)))
+  (mapcar #'parse-integer (split-sequence "," line)))
 
 (defun parse-tickets (input)
-  (loop for line in (rest (split-lines input))
-        unless (equal "" line)
-          collect (parse-ticket line)))
+  (mapcar #'parse-ticket
+          (remove ""
+                  (rest (split-lines input))
+                  :test #'equal)))
 
 (defun parse-notes (input)
   (destructuring-bind (a b c) (split-sequence #(#\Newline #\Newline) input)
@@ -362,10 +360,15 @@ nearby tickets:
             (value-in-range-p range value))
         (field-ranges field)))
 
+(defun valid-for-some-field-p (fields value)
+  (some #'(lambda (field)
+            (valid-for-field-p field value))
+        fields))
+
 (defun valid-ticket-p (fields ticket)
-  (loop for value in ticket
-        always (loop for field in fields
-                     thereis (valid-for-field-p field value))))
+  (every #'(lambda (value)
+             (valid-for-some-field-p fields value))
+         ticket))
 
 (defun remove-invalid-tickets (fields tickets)
   (remove-if-not #'(lambda (ticket)
