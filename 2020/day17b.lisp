@@ -73,9 +73,8 @@
 
 (defun shift-point (point shift)
   (declare (type point point))
-  (make-point (+ shift (point-z point))
-              (+ shift (point-y point))
-              (+ shift (point-x point))))
+  (mapcar #'(lambda (num) (+ shift num))
+          point))
 
 (defun get-bounds (cubes)
   (loop for p being each hash-key of cubes
