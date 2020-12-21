@@ -315,14 +315,14 @@ nearby tickets:
   (loop for range in (split-sequence " or " input)
         collect (parse-range range)))
 
-(defun parse-rule (input)
+(defun parse-field (input)
   (destructuring-bind (name rest) (split-sequence ": " input)
     (list (cons :name name)
           (cons :ranges (parse-ranges rest)))))
 
-(defun parse-rules (input)
-  (loop for rule in (split-sequence #(#\Newline) input)
-        collect (parse-rule rule)))
+(defun parse-fields (input)
+  (loop for field in (split-sequence #(#\Newline) input)
+        collect (parse-field field)))
 
 (defun parse-ticket (line)
   (mapcar #'parse-integer
@@ -335,18 +335,18 @@ nearby tickets:
 
 (defun parse-notes (input)
   (destructuring-bind (a b c) (split-sequence #(#\Newline #\Newline) input)
-    (list (cons :rules (parse-rules a))
+    (list (cons :fields (parse-fields a))
           (cons :your-ticket (parse-tickets b))
           (cons :nearby-tickets (parse-tickets c)))))
 
-(defun rule-name (rules)
-  (cdr (assoc :name rules)))
+(defun field-name (fields)
+  (cdr (assoc :name fields)))
 
-(defun rule-ranges (rules)
-  (cdr (assoc :ranges rules)))
+(defun field-ranges (fields)
+  (cdr (assoc :ranges fields)))
 
-(defun notes-rules (notes)
-  (cdr (assoc :rules notes)))
+(defun notes-fields (notes)
+  (cdr (assoc :fields notes)))
 
 (defun notes-your-ticket (notes)
   (cadr (assoc :your-ticket notes)))
@@ -357,23 +357,23 @@ nearby tickets:
 (defun value-in-range-p (range value)
   (<= (car range) value (cdr range)))
 
-(defun value-satisfies-rule-p (rule value)
+(defun valid-for-field-p (field value)
   (some #'(lambda (range)
             (value-in-range-p range value))
-        (rule-ranges rule)))
+        (field-ranges field)))
 
-(defun valid-ticket-p (rules ticket)
+(defun valid-ticket-p (fields ticket)
   (loop for value in ticket
-        always (loop for rule in rules
-                     thereis (value-satisfies-rule-p rule value))))
+        always (loop for field in fields
+                     thereis (valid-for-field-p field value))))
 
-(defun remove-invalid-tickets (rules tickets)
+(defun remove-invalid-tickets (fields tickets)
   (remove-if-not #'(lambda (ticket)
-                     (valid-ticket-p rules ticket))
+                     (valid-ticket-p fields ticket))
                  tickets))
 
-(defun all-values-valid-for-rule-p (rule values)
-  (loop with ranges = (rule-ranges rule)
+(defun all-valid-for-field-p (field values)
+  (loop with ranges = (field-ranges field)
         for value in values
         always (loop for range in ranges
                      for low fixnum = (car range)
@@ -383,59 +383,59 @@ nearby tickets:
 (defun rotate (list-of-lists)
   (apply #'mapcar #'list list-of-lists))
 
-(defun rule-compute-valid-fields (rule field-major-values)
+(defun field-compute-valid-fields (field field-major-values)
   (acons :valid-fields
          (loop for index from 1
                for values in field-major-values
-               if (all-values-valid-for-rule-p rule values)
+               if (all-valid-for-field-p field values)
                  collect index)
-         rule))
+         field))
 
-(defun rule-valid-fields (rule)
-  (cdr (assoc :valid-fields rule)))
+(defun field-valid-fields (field)
+  (cdr (assoc :valid-fields field)))
 
-(defun rules-add-valid-fields (rules field-major-values)
-  (sort (loop for rule in rules
-              collect (rule-compute-valid-fields
-                       rule field-major-values))
+(defun fields-add-valid-fields (fields field-major-values)
+  (sort (loop for field in fields
+              collect (field-compute-valid-fields
+                       field field-major-values))
         #'(lambda (a b)
             (< (length a) (length b)))
-        :key #'rule-valid-fields))
+        :key #'field-valid-fields))
 
-(defun solve-rule-order-2 (index rules)
-  (loop for rule in rules
-        for rest = (remove rule rules :test #'eq)
-        do (when (member index (rule-valid-fields rule))
+(defun solve-field-order-2 (index fields)
+  (loop for field in fields
+        for rest = (remove field fields :test #'eq)
+        do (when (member index (field-valid-fields field))
              (if (null rest)
-                 (return (list rule))
-                 (let ((ordered (solve-rule-order-2 (1+ index) rest)))
+                 (return (list field))
+                 (let ((ordered (solve-field-order-2 (1+ index) rest)))
                    (when ordered
-                     (return (cons rule ordered))))))))
+                     (return (cons field ordered))))))))
 
-(defun solve-rule-order (notes)
-  (let* ((rules (notes-rules notes))
+(defun solve-field-order (notes)
+  (let* ((fields (notes-fields notes))
          (field-major-values (rotate
                               (remove-invalid-tickets
-                               rules
+                               fields
                                (notes-nearby-tickets notes))))
-         (solved-rules (solve-rule-order-2
+         (solved-fields (solve-field-order-2
                         1
-                        (rules-add-valid-fields rules field-major-values))))
+                        (fields-add-valid-fields fields field-major-values))))
     (loop for index from 0
-          for rule in solved-rules
-          collect (acons :index index rule))))
+          for field in solved-fields
+          collect (acons :index index field))))
 
 (defun departure-fields (notes)
   (remove-if-not #'(lambda (name)
                      (eql 0 (search "departure " name)))
-                 (solve-rule-order notes)
-                 :key #'rule-name))
+                 (solve-field-order notes)
+                 :key #'field-name))
 
 (defun field-index (field)
   (cdr (assoc :index field)))
 
-(defun field-indices (rules)
-  (mapcar #'field-index rules))
+(defun field-indices (fields)
+  (mapcar #'field-index fields))
 
 (defun part-two-answer (input)
   (loop with product = 1
