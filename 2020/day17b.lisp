@@ -38,18 +38,6 @@
   ;; allow it.
   (make-hash-table :test #'equalp))
 
-(defun point-z (point)
-  (declare (type point point))
-  (aref point 0))
-
-(defun point-y (point)
-  (declare (type point point))
-  (aref point 1))
-
-(defun point-x (point)
-  (declare (type point point))
-  (aref point 2))
-
 (defun split-sequence (needle haystack &key (start 0) end)
   (loop with needle-length = (length needle)
         for haystack-start = start then (+ pos needle-length)
@@ -122,7 +110,7 @@
           (end-index (length start)))
       (labels ((subscripts (index)
                  (if (eql index end-index)
-                     (funcall function current)
+                     (funcall function (copy-point current))
                      (loop for i from (aref start index) to (aref end index)
                            do (progn
                                 (setf (aref current index) i)
@@ -155,17 +143,37 @@
                 collect point)))
 
 (defun format-points (destination points)
-  (destructuring-bind (low high) (get-bounds points)
-    (loop for z from (point-z low) to (point-z high)
-          do (format destination "~&z=~d~%" z)
-          do (loop for y from (point-y low) to (point-y high)
-                   do (loop for x from (point-x low) to (point-x high)
-                            do (format destination "~c"
-                                       (if (active-p (make-point z y x) points)
-                                           #\#
-                                           #\.))
-                            finally (format destination "~%"))
-                   finally (format destination "~%")))))
+  (let ((prev))
+    (labels
+        ((changed-suffix-length (point)
+           (cond
+             ((null prev) (length point))
+             (t (loop with changed = (length point)
+                      for i from 0 below (length point)
+                      while (eql (aref prev i) (aref point i))
+                      do (decf changed)
+                      finally (return changed)))))
+
+         (print-header (point)
+           (format destination "~&")
+           (unless (null prev)
+             (format destination "~%"))
+           (dotimes (i (- (length point) 2))
+             (format destination "P[~D]=~S " i (aref point i)))
+           (format destination "~%"))
+
+         (print-point (point)
+           (let ((changed (changed-suffix-length point)))
+             (when (> changed 2)
+               (print-header point))
+             (when (> changed 1)
+               (format destination "~&"))
+             (format destination "~c" (if (active-p point points)
+                                          #\#
+                                          #\.))
+             (setf prev point))))
+
+      (for-each-point #'print-point (get-bounds points)))))
 
 (defun cycle1 (points)
   (let ((next-points (make-points-table)))
