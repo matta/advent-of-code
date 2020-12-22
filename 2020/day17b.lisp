@@ -23,26 +23,32 @@
 ..#####.
 ######.#")
 
-(deftype point () '(cons))
+(deftype point () '(simple-array fixnum))
 
-(defun make-point (z y x)
-  (list z y x))
+(defun make-point (&rest nums)
+  (make-array (length nums)
+              :element-type 'fixnum
+              :initial-contents nums))
+
+(defun point-equal (a b)
+  (equalp a b))
+
+(defun make-points-table ()
+  ;; Nit: I'd like to pass :test #'point-equal here but the spec won't
+  ;; allow it.
+  (make-hash-table :test #'equalp))
 
 (defun point-z (point)
   (declare (type point point))
-  (first point))
+  (aref point 0))
 
 (defun point-y (point)
   (declare (type point point))
-  (second point))
+  (aref point 1))
 
 (defun point-x (point)
   (declare (type point point))
-  (third point))
-
-(defun point-equal (a b)
-  (declare (type point a) (type point b))
-  (equal a b))
+  (aref point 2))
 
 (defun split-sequence (needle haystack &key (start 0) end)
   (loop with needle-length = (length needle)
@@ -63,7 +69,7 @@
   (gethash point points nil))
 
 (defun parse-input (input)
-  (loop with points = (make-hash-table :test #'equal)
+  (loop with points = (make-points-table)
         for line in (split-sequence '(#\Newline) input)
         for y from 0
         append (loop for ch across line
@@ -72,31 +78,35 @@
                           (set-active (make-point 0 y x) points)))
         finally (return points)))
 
+(defun copy-point (src)
+  (let* ((dimensions (array-dimensions src))
+         (dst (make-array dimensions
+                          :element-type (array-element-type src))))
+    (dotimes (i (length src))
+      (setf (aref dst i) (aref src i)))
+    copy))
 
 (defun shift-point (point shift)
-  (declare (type point point))
-  (mapcar #'(lambda (num) (+ shift num))
-          point))
+  (let ((copy (copy-point point)))
+    (dotimes (i (length copy))
+      (setf (aref copy i) (+ shift (aref copy i))))
+    copy))
 
-(defun elementwise-min (a b)
-  (loop for m in a
-        for n in b
-        collect (min m n)))
-
-(defun elementwise-max (a b)
-  (loop for m in a
-        for n in b
-        collect (max m n)))
+(defun elementwise-min-max-into (src min max)
+  (macrolet ((setif (dest cmp)
+               `(when (funcall ,cmp (aref src i) (aref ,dest i))
+                  (setf (aref ,dest i) (aref src i)))))
+    (dotimes (i (length src))
+      (setif min #'<)
+      (setif max #'>))))
 
 (defun get-bounds (cubes)
   (let (minimum maximum)
     (loop for p being each hash-key of cubes
-          do (setf minimum (if (null minimum)
-                               p
-                               (elementwise-min p minimum)))
-          do (setf maximum (if (null maximum)
-                               p
-                               (elementwise-max p maximum))))
+          do (if (null minimum)
+                 (psetf minimum (copy-point p)
+                        maximum (copy-point p))
+                 (elementwise-min-max-into p minimum maximum)))
     (list minimum (shift-point maximum 1))))
 
 (defun grow-bounds (bounds)
@@ -147,7 +157,7 @@
                    finally (format destination "~%")))))
 
 (defun cycle1 (points)
-  (let ((next-points (make-hash-table :test #'equal)))
+  (let ((next-points (make-points-table)))
     (for-each-point #'(lambda (point)
                         (when (transition-to-active-p point points)
                           (set-active point next-points)))
