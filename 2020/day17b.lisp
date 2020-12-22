@@ -102,6 +102,10 @@
                  (elementwise-min-max-into p minimum maximum)))
     (list minimum maximum)))
 
+(defun neighbor-bounds (point)
+  (list (shift-point point -1)
+        (shift-point point 1)))
+
 (defun grow-bounds (bounds)
   (destructuring-bind (start end) bounds
     (list
@@ -120,10 +124,6 @@
                                 (setf (aref current index) i)
                                 (subscripts (1+ index)))))))
         (subscripts 0)))))
-
-(defun neighbor-bounds (point)
-  (list (shift-point point -1)
-        (shift-point point 1)))
 
 (defun count-active-around (center points)
   (let ((count 0))
