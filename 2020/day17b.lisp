@@ -62,11 +62,12 @@
 
 (defun set-active (point points)
   (declare (type point point))
-  (setf (gethash point points) t))
+  (setf (gethash (copy-point point) points) t))
 
 (defun active-p (point points)
-  (declare (type point point))
-  (gethash point points nil))
+  (multiple-value-bind (value present-p) (gethash point points nil)
+    (declare (ignore value))
+    present-p))
 
 (defun parse-input (input)
   (loop with points = (make-points-table)
@@ -78,13 +79,13 @@
                           (set-active (make-point 0 y x) points)))
         finally (return points)))
 
-(defun copy-point (src)
-  (let* ((dimensions (array-dimensions src))
-         (dst (make-array dimensions
-                          :element-type (array-element-type src))))
-    (dotimes (i (length src))
-      (setf (aref dst i) (aref src i)))
-    copy))
+(defun copy-point (source)
+  (let* ((dimensions (array-dimensions source))
+         (dest (make-array dimensions
+                           :element-type (array-element-type source))))
+    (dotimes (i (length source))
+      (setf (aref dest i) (aref source i)))
+    dest))
 
 (defun shift-point (point shift)
   (let ((copy (copy-point point)))
@@ -100,14 +101,14 @@
       (setif min #'<)
       (setif max #'>))))
 
-(defun get-bounds (cubes)
+(defun get-bounds (points)
   (let (minimum maximum)
-    (loop for p being each hash-key of cubes
+    (loop for p being each hash-key of points
           do (if (null minimum)
-                 (psetf minimum (copy-point p)
-                        maximum (copy-point p))
+                 (setf minimum (copy-point p)
+                       maximum (copy-point p))
                  (elementwise-min-max-into p minimum maximum)))
-    (list minimum (shift-point maximum 1))))
+    (list minimum maximum)))
 
 (defun grow-bounds (bounds)
   (destructuring-bind (start end) bounds
@@ -117,38 +118,48 @@
 
 (defun for-each-point (function bounds)
   (destructuring-bind (start end) bounds
-    (declare (type point start) (type point end))
-    (loop for z from (point-z start) below (point-z end)
-          do (loop for y from (point-y start) below (point-y end)
-                   do (loop for x from (point-x start) below (point-x end)
-                            do (funcall function (make-point z y x)))))))
+    (let ((current (copy-point start))
+          (end-index (length start)))
+      (labels ((subscripts (index)
+                 (if (eql index end-index)
+                     (funcall function current)
+                     (loop for i from (aref start index) to (aref end index)
+                           do (progn
+                                (setf (aref current index) i)
+                                (subscripts (1+ index)))))))
+        (subscripts 0)))))
 
 (defun neighbor-bounds (point)
   (list (shift-point point -1)
-        (shift-point point 2)))
+        (shift-point point 1)))
 
-(defun count-active-neighbors (point points)
-  (declare (type point point))
+(defun count-active-around (center points)
   (let ((count 0))
-    (for-each-point #'(lambda (neighbor)
-                       (when (and (not (point-equal neighbor point))
-                                  (active-p neighbor points))
-                         (incf count)))
-                   (neighbor-bounds point))
+    (for-each-point #'(lambda (point)
+                        (when (active-p point points)
+                          (incf count)))
+                    (neighbor-bounds center))
     count))
 
 (defun transition-to-active-p (point points)
-  (let ((count (count-active-neighbors point points)))
+  (let ((count (count-active-around point points)))
     (if (active-p point points)
-        (or (eql count 2) (eql count 3))
+        (progn
+          (decf count)
+          (or (eql count 2) (eql count 3)))
         (eql count 3))))
+
+(defun print-points (destination points)
+  (format destination "~&~S~%"
+          (loop for point being each hash-key of points
+                collect point)))
 
 (defun format-points (destination points)
   (destructuring-bind (low high) (get-bounds points)
-    (loop for z from (point-z low) below (point-z high)
+    (loop for z from (point-z low) to (point-z high)
           do (format destination "~&z=~d~%" z)
-          do (loop for y from (point-y low) below (point-y high)
-                   do (loop for x from (point-x low) below (point-x high)
+          do (loop for y from (point-y low) to (point-y high)
+                   do (loop for x from (point-x low) to (point-x high)
                             do (format destination "~c"
                                        (if (active-p (make-point z y x) points)
                                            #\#
@@ -165,7 +176,7 @@
     next-points))
 
 (defun cycle (count points)
-  (dotimes (unused count points)
+  (dotimes (i count points)
     (setf points (cycle1 points))))
 
 (defun test ()
