@@ -1,6 +1,7 @@
 ;;
-;; Day 22 of Advent of Code 2020, in Common Lisp.  This solves Part One.
-;; See https://adventofcode.com/2020/day/22 for the problem statement.
+;; Day 22 of Advent of Code 2020, in Common Lisp.  This solves Part One and
+;; Two.  See https://adventofcode.com/2020/day/22 for the problem
+;; statement.
 ;;
 ;; I'm using only standard Common Lisp functions; no external packages.
 ;;
