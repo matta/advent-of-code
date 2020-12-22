@@ -54,6 +54,14 @@
         collect (subseq haystack haystack-start pos)
         until (null pos)))
 
+(defun set-active (point points)
+  (declare (type point point))
+  (setf (gethash point points) t))
+
+(defun active-p (point points)
+  (declare (type point point))
+  (gethash point points nil))
+
 (defun parse-input (input)
   (loop with points = (make-hash-table :test #'equal)
         for line in (split-sequence '(#\Newline) input)
@@ -61,36 +69,35 @@
         append (loop for ch across line
                      for x from 0
                      do (when (eql ch #\#)
-                          (setf (gethash (make-point 0 y x) points) t)))
+                          (set-active (make-point 0 y x) points)))
         finally (return points)))
 
-(defun set-active (point points)
-  (setf (gethash point points) t))
-
-(defun active-p (point points)
-  (declare (type point point))
-  (gethash point points nil))
 
 (defun shift-point (point shift)
   (declare (type point point))
   (mapcar #'(lambda (num) (+ shift num))
           point))
 
+(defun elementwise-min (a b)
+  (loop for m in a
+        for n in b
+        collect (min m n)))
+
+(defun elementwise-max (a b)
+  (loop for m in a
+        for n in b
+        collect (max m n)))
+
 (defun get-bounds (cubes)
-  (loop for p being each hash-key of cubes
-        for z = (point-z p)
-        for y = (point-y p)
-        for x = (point-x p)
-        minimize z into min-z fixnum
-        minimize y into min-y fixnum
-        minimize x into min-x fixnum
-        maximize z into max-z fixnum
-        maximize y into max-y fixnum
-        maximize x into max-x fixnum
-        finally (return (list (make-point min-z min-y min-x)
-                              (shift-point (make-point
-                                                 max-z max-y max-x)
-                                                1)))))
+  (let (minimum maximum)
+    (loop for p being each hash-key of cubes
+          do (setf minimum (if (null minimum)
+                               p
+                               (elementwise-min p minimum)))
+          do (setf maximum (if (null maximum)
+                               p
+                               (elementwise-max p maximum))))
+    (list minimum (shift-point maximum 1))))
 
 (defun grow-bounds (bounds)
   (destructuring-bind (start end) bounds
