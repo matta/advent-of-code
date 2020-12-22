@@ -138,30 +138,43 @@ No two decks will produce the same token.  This works because WIN-COMBAT
 produces a unique number for any given deck."
   (cons (win-combat deck-a) (win-combat deck-b)))
 
-(defun recursive-combat (deck-a deck-b
-                         &optional (memory (make-hash-table :test #'equal)))
+(defun recursive-combat-low (deck-a deck-b
+                             &optional (memory (make-hash-table :test #'equal)))
+  ;; If this game has seen this exact hand, the winner is A.
   (let ((token (scenario-token deck-a deck-b)))
     (if (gethash token memory)
         (win-recursive-combat 'a deck-a)
         (progn
+          ;; Otherwise we must keep playing...
           (setf (gethash token memory) t)
           (cond
+            ;; If either deck is empty, the other deck won.
             ((null deck-a) (win-recursive-combat 'b deck-b))
             ((null deck-b) (win-recursive-combat 'a deck-a))
             (t (let ((card-a (pop deck-a))
                      (card-b (pop deck-b)))
+                 ;; If both decks have enough cards the winner is
+                 ;; determined by a recursive game.  Otherwise the winner
+                 ;; is determined by the high draw.
                  (if (if (and (>= (length deck-a) card-a)
                               (>= (length deck-b) card-b))
-                         (eq 'a (first (recursive-combat
+                         ;; The recursive game is run with a leading subset
+                         ;; of each deck determined by the draw.
+                         (eq 'a (first (recursive-combat-low
                                         (subseq deck-a 0 card-a)
                                         (subseq deck-b 0 card-b))))
                          (> card-a card-b))
-                     (recursive-combat (append deck-a (list card-a card-b))
-                                       deck-b
-                                       memory)
-                     (recursive-combat deck-a
-                                       (append deck-b (list card-b card-a))
-                                       memory)))))))))
+                     ;; Iterate this game based on the winner.
+                     (recursive-combat-low (nconc deck-a (list card-a card-b))
+                                           deck-b
+                                           memory)
+                     (recursive-combat-low deck-a
+                                           (nconc deck-b (list card-b card-a))
+                                           memory)))))))))
+
+(defun recursive-combat (deck-a deck-b)
+  (recursive-combat-low (copy-list deck-a)
+                        (copy-list deck-b)))
 
 (defun test ()
   (assert (eql 306 (play #'combat (parse-input *example-input*))))
