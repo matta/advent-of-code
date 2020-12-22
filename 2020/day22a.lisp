@@ -131,13 +131,20 @@ Player 2:
 (defun win-recursive-combat (player deck)
   (list player (win-combat deck) deck))
 
+(defun scenario-token (deck-a deck-b)
+  "Reduce two decks down to a distinct CONS of two numbers.
+
+No two decks will produce the same token.  This works because WIN-COMBAT
+produces a unique number for any given deck."
+  (cons (win-combat deck-a) (win-combat deck-b)))
+
 (defun recursive-combat (deck-a deck-b
                          &optional (memory (make-hash-table :test #'equal)))
-  (let ((hands (list deck-a deck-b)))
-    (if (gethash hands memory)
+  (let ((token (scenario-token deck-a deck-b)))
+    (if (gethash token memory)
         (win-recursive-combat 'a deck-a)
         (progn
-          (setf (gethash hands memory) t)
+          (setf (gethash token memory) t)
           (cond
             ((null deck-a) (win-recursive-combat 'b deck-b))
             ((null deck-b) (win-recursive-combat 'a deck-a))
