@@ -57,14 +57,18 @@
     (declare (ignore value))
     present-p))
 
-(defun parse-input (input)
+(defun parse-input (dimensions input)
   (loop with points = (make-points-table)
+        with coord-prefix = (loop for i from 2 below dimensions
+                                  collect 0)
         for line in (split-sequence '(#\Newline) input)
         for y from 0
         append (loop for ch across line
                      for x from 0
                      do (when (eql ch #\#)
-                          (set-active (make-point 0 y x) points)))
+                          (set-active (apply #'make-point
+                                             (append coord-prefix (list y x)))
+                                      points)))
         finally (return points)))
 
 (defun copy-point (source)
@@ -110,7 +114,7 @@
           (end-index (length start)))
       (labels ((subscripts (index)
                  (if (eql index end-index)
-                     (funcall function (copy-point current))
+                     (funcall function current)
                      (loop for i from (aref start index) to (aref end index)
                            do (progn
                                 (setf (aref current index) i)
@@ -188,9 +192,24 @@
     (setf points (cycle1 points))))
 
 (defun test ()
-  (assert (equal 112 (hash-table-count
-                      (cycle
-                       6 (parse-input *example-input*)))))
-  (assert (equal 388 (hash-table-count
-                      (cycle
-                       6 (parse-input *input*))))))
+  ;; Part One
+  (let ((dimensions 3))
+    (assert (equal 112 (hash-table-count
+                        (cycle
+                         6
+                         (parse-input dimensions *example-input*)))))
+    (assert (equal 388 (hash-table-count
+                        (cycle
+                         6
+                         (parse-input dimensions *input*))))))
+
+  ;; Part Two
+  (let ((dimensions 4))
+    (assert (equal 848 (hash-table-count
+                        (cycle
+                         6
+                         (parse-input dimensions *example-input*)))))
+    (assert (equal 2280 (hash-table-count
+                         (cycle
+                          6
+                          (parse-input dimensions *input*)))))))
