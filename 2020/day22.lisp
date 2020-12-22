@@ -6,8 +6,8 @@
 ;; I'm using only standard Common Lisp functions; no external packages.
 ;;
 
-(defpackage :day22a (:use #:common-lisp))
-(in-package :day22a)
+(defpackage :day22 (:use #:common-lisp))
+(in-package :day22)
 
 (defparameter *example-input*
   "Player 1:
