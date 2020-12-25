@@ -26,7 +26,7 @@
                                            (length initial-cups)))))
          (cups (make-array (1+ max-cup)
                            :initial-element 0
-                           :element-type 'integer))
+                           :element-type 'fixnum))
          (prev-cup (first initial-cups)))
     (loop for cup in (rest initial-cups)
           do (set-next cups prev-cup cup)
@@ -37,24 +37,24 @@
     (set-next cups prev-cup (first initial-cups))
     cups))
 
-(defun extract-after-cup (cups cup n)
-  (loop with start = (get-next cups cup)
+(defun hold-after-cup (cups cup n)
+  (loop with first = (get-next cups cup)
         for i below n
-        for last = start then (get-next cups last)
-        finally (return (prog1 start
-                          (set-next cups cup (get-next cups last))
-                          (set-next cups last 0)))))
+        for last = first then (get-next cups last)
+        finally (return (prog1 (cons first last)
+                          (set-next cups cup (get-next cups last))))))
+
+(defun heldp (cups held cup)
+  (destructuring-bind (first . last) held
+    (loop for c fixnum = first then (get-next cups c)
+          if (eql c cup)
+            do (return t)
+          until (eql c last))))
 
 (defun next-destination (cups cup)
   (if (>= (decf cup) 1)
       cup
       (1- (length cups))))
-
-(defun heldp (cups held cup)
-  (loop for c = held then (get-next cups c)
-        until (zerop c)
-        if (eql c cup)
-          do (return t)))
 
 (defun destination-cup (cups current held)
   (flet ((next (cup) (next-destination cups cup)))
@@ -62,15 +62,10 @@
           while (heldp cups held dest)
           finally (return dest))))
 
-(defun last-cup (cups head)
-  (loop for cup = head then next
-        for next = (get-next cups cup)
-        until (zerop next)
-        finally (return cup)))
-
 (defun insert-cups (cups dest held)
-  (set-next cups (last-cup cups held) (get-next cups dest))
-  (set-next cups dest held))
+  (destructuring-bind (first . last) held
+    (set-next cups last (get-next cups dest))
+    (set-next cups dest first)))
 
 (defun cup-sublist (cups head &optional (n 100))
   (loop for i below n
@@ -85,7 +80,7 @@
         with cups = (make-cups initial-cups total-cups)
         for current = (first initial-cups) then (get-next cups current)
         for i from 0 below total-moves
-        for held = (extract-after-cup cups current 3)
+        for held = (hold-after-cup cups current 3)
         for dest = (destination-cup cups current held)
         do (insert-cups cups dest held)
         finally (return (rest (cup-sublist cups
