@@ -16,6 +16,56 @@ aaabbb
 aaaabbb
 ")
 
+(defparameter *example-input2*
+  "42: 9 14 | 10 1
+9: 14 27 | 1 26
+10: 23 14 | 28 1
+1: \"a\"
+11: 42 31
+5: 1 14 | 15 1
+19: 14 1 | 14 14
+12: 24 14 | 19 1
+16: 15 1 | 14 14
+31: 14 17 | 1 13
+6: 14 14 | 1 14
+2: 1 24 | 14 4
+0: 8 11
+13: 14 3 | 1 12
+15: 1 | 14
+17: 14 2 | 1 7
+23: 25 1 | 22 14
+28: 16 1
+4: 1 1
+20: 14 14 | 1 15
+3: 5 14 | 16 1
+27: 1 6 | 14 18
+14: \"b\"
+21: 14 1 | 1 14
+25: 1 1 | 1 14
+22: 14 14
+8: 42
+26: 14 22 | 1 20
+18: 15 15
+7: 14 5 | 1 21
+24: 14 1
+
+abbbbbabbbaaaababbaabbbbabababbbabbbbbbabaaaa
+bbabbbbaabaabba
+babbbbaabbbbbabbbbbbaabaaabaaa
+aaabbbbbbaaaabaababaabababbabaaabbababababaaa
+bbbbbbbaaaabbbbaaabbabaaa
+bbbababbbbaaaaaaaabbababaaababaabab
+ababaaaaaabaaab
+ababaaaaabbbaba
+baabbaaaabbaaaababbaababb
+abbbbabbbbaaaababbbbbbaaaababb
+aaaaabbaabaaaaababaa
+aaaabbaaaabbaaa
+aaaabbaabbaaaaaaabbbabbbaaabbaabaaa
+babaaabbbaaabaababbaabababaaab
+aabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba
+")
+
 (defparameter *input*
   "66: 69 116 | 9 115
 91: 95 9 | 109 69
@@ -514,42 +564,42 @@ abbbabbbbababbbbabbabbbb
 
 (defun parse-number ()
   (parse-integer (read-while #'digit-char-p)))
-           
-(defun whitespace ()
+
+(defun consume-whitespace ()
   (loop while (looking-at #\Space)
         do (consume)))
 
-(defun document ()
-  (prog1 (list (rules)
+(defun parse-document ()
+  (prog1 (list (parse-rules)
                (when (looking-at #\Newline)
                  (consume)
-                 (messages)))
+                 (parse-messages)))
     (assert (eof))))
 
-(defun rules ()
+(defun parse-rules ()
   (loop while (digit-char-p (peek))
-        collect (rule)))
+        collect (parse-rule)))
 
-(defun rule ()
+(defun parse-rule ()
   (let ((rule-number (parse-number)))
-    (whitespace)
+    (consume-whitespace)
     (must #\:)
     (let ((disjunction (loop collect (progn
-                                       (whitespace)
-                                       (nconc (sub-rule)
+                                       (consume-whitespace)
+                                       (nconc (parse-sub-rule)
                                               (when (= rule-number 0)
                                                 '(eof))))
                              while (progn
-                                     (whitespace)
+                                     (consume-whitespace)
                                      (when (looking-at #\|)
                                        (consume)
                                        t)))))
       (must #\Newline)
       (list rule-number disjunction))))
 
-(defun sub-rule ()
+(defun parse-sub-rule ()
   (loop for parsed = (progn
-                       (whitespace)
+                       (consume-whitespace)
                        (cond
                          ((digit-char-p (peek))
                           (parse-number))
@@ -560,14 +610,14 @@ abbbabbbbababbbbabbabbbb
         while parsed
         collect parsed))
 
-(defun messages ()
+(defun parse-messages ()
   (loop while (and (not (eof))
                    (alpha-char-p (peek)))
         collect (read-line *standard-input*)))
 
-(defun parse-document (input)
+(defun parse-document-string (input)
   (with-input-from-string (*standard-input* input)
-    (document)))
+    (parse-document)))
 
 
 (defun rule-disjunction (rule rules)
@@ -596,9 +646,7 @@ abbbabbbbababbbbabbabbbb
   (let ((disjunction (rule-disjunction rule rules)))
     (loop for sub-rule in disjunction
           for pos = (sub-rule-match-p message start sub-rule rules)
-          until (and pos
-                     (or (not (zerop rule))
-                         (= pos (length message))))
+          until pos
           finally (return pos))))
 
 (defun valid-message-p (message rules)
@@ -611,8 +659,36 @@ abbbabbbbababbbbabbabbbb
               messages)))
 
 (defun part-one (input)
-  (count-valid-messages (parse-document input)))
+  (count-valid-messages (parse-document-string input)))
+
+(defun update-rule (rule)
+  (let ((rule-number (first rule)))
+    (cond
+      ((= rule-number 8)
+       (with-input-from-string (*standard-input* "8: 42 | 42 8
+")
+         (parse-rule)))
+      ((= rule-number 11)
+       (with-input-from-string (*standard-input* "11: 42 31 | 42 11 31
+")
+         (parse-rule)))
+      (t rule))))
+
+(defun update-rules (rules)
+  (mapcar #'update-rule rules))
+
+(defun update-document (document)
+  (destructuring-bind (rules messages) document
+    (list (update-rules rules) messages)))
+
+(defun part-two (input)
+  (count-valid-messages (update-document (parse-document-string input))))
 
 (defun test ()
   (assert (= 2 (part-one *example-input*)))
-  (assert (= 165 (part-one *input*))))
+  (assert (= 165 (part-one *input*)))
+
+  (assert (= 3 (part-one *example-input2*)))
+  ;; (assert (= 12 (part-two *example-input2*)))
+  ;; (assert (= -1 (part-two *input*)))
+  )
