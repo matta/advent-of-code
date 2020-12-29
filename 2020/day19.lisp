@@ -628,8 +628,6 @@ abbbabbbbababbbbabbabbbb
 (defun rule-disjunction (rule rules)
   (second (assoc rule rules :test #'eql)))
 
-(defparameter *rule-depth* 0)
-
 (deftype rule-number () `(integer ,+rule-zero+ *))
 (deftype parse-index () '(or nil (integer 0 80)))
 
@@ -656,7 +654,7 @@ abbbabbbbababbbbabbabbbb
         while messages
         do (setf messages
                  (cond
-                   ((typep term 'rule)
+                   ((typep term 'rule-number)
                     (eval-rule messages term rules))
                    ((characterp term)
                     (eval-charmatch messages term))
@@ -666,38 +664,24 @@ abbbabbbbababbbbabbabbbb
                     (error "Bad term in rule: ~S" term))))
         finally (return messages)))
 
-(defun debug-print-depth ()
-  (fresh-line)
-  (dotimes (i (* 4 *rule-depth*))
-    (format t " ")))
-
-(defun flatten (lst &aux result)
-  (labels ((rflatten (lst1)
-             (dolist (el lst1 result)
-               (unless (null el)
-                 (if (listp el)
-                     (rflatten el)
-                     (push el result))))))
-    (nreverse (rflatten lst))))
-
 (defun eval-rule (messages rule rules)
   (declare (type list messages)
            (type rule-number rule)
            (type list rules))
   (let ((disjunction (rule-disjunction rule rules)))
     (loop for sub-rule in disjunction
-          collect (eval-subrule messages
-                                sub-rule
-                                rules)
+          append (eval-subrule messages
+                               sub-rule
+                               rules)
             into remaining-messages
           finally (progn
                     (setf remaining-messages
-                          (remove-duplicates (flatten remaining-messages)
+                          (remove-duplicates remaining-messages
                                              :test #'string=))
                     (return remaining-messages)))))
 
 (defun valid-message-p (message rules)
-  (eval-rule (list message) +rule-zero+ rules))
+  (consp (eval-rule (list message) +rule-zero+ rules)))
 
 (defun count-valid-messages (document)
   (destructuring-bind (rules messages) document
