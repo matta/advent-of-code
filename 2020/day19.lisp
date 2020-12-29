@@ -580,14 +580,19 @@ abbbabbbbababbbbabbabbbb
   (loop while (digit-char-p (peek))
         collect (parse-rule)))
 
+(defconstant +rule-zero+ 0)
+
+(defun parse-rule-number ()
+  (+ +rule-zero+ (parse-number)))
+
 (defun parse-rule ()
-  (let ((rule-number (parse-number)))
+  (let ((rule-number (parse-rule-number)))
     (consume-whitespace)
     (must #\:)
     (let ((disjunction (loop collect (progn
                                        (consume-whitespace)
                                        (nconc (parse-sub-rule)
-                                              (when (= rule-number 0)
+                                              (when (= rule-number +rule-zero+)
                                                 '(eof))))
                              while (progn
                                      (consume-whitespace)
@@ -602,7 +607,7 @@ abbbabbbbababbbbabbabbbb
                        (consume-whitespace)
                        (cond
                          ((digit-char-p (peek))
-                          (parse-number))
+                          (parse-rule-number))
                          ((char= #\" (peek))
                           (must #\")
                           (prog1 (consume)
@@ -623,34 +628,99 @@ abbbabbbbababbbbabbabbbb
 (defun rule-disjunction (rule rules)
   (second (assoc rule rules :test #'eql)))
 
-(defun sub-rule-match-p (message start sub-rule rules)
-  (loop with pos = start
-        for term in sub-rule
-        while pos
-        do (setf pos
+(defparameter *rule-depth* 0)
+
+(deftype rule-number () `(integer ,+rule-zero+ *))
+(deftype parse-index () '(or nil (integer 0 80)))
+
+(defun without-first (seq)
+  (make-array (- (length seq) 1)
+              :element-type (array-element-type seq)
+              :displaced-to seq
+              :displaced-index-offset 1))
+
+(defun eval-charmatch (strings char)
+  (loop for str in strings
+        when (and (not (zerop (length str)))
+                  (char= char (aref str 0)))
+          collect (without-first str)))
+
+(defun eval-eof (strings)
+  (remove-if-not #'(lambda (str) (zerop (length str))) strings))
+
+(defun eval-subrule (messages sub-rule rules)
+  (declare (type list messages)
+           (type list sub-rule)
+           (type list rules))
+  (loop for term in sub-rule
+        while messages
+        do (setf messages
                  (cond
-                   ((integerp term)
-                    (rule-match-p pos message term rules))
+                   ((typep term 'rule)
+                    (eval-rule messages term rules))
                    ((characterp term)
-                    (when (and (< pos (length message))
-                               (char= term (aref message pos)))
-                      (1+ pos)))
+                    (eval-charmatch messages term))
                    ((eq term 'eof)
-                    (when (= pos (length message))
-                      pos))
+                    (eval-eof messages))
                    (t
                     (error "Bad term in rule: ~S" term))))
-        finally (return pos)))
+        finally (return messages)))
 
-(defun rule-match-p (start message rule rules)
+(defun debug-print-depth ()
+  (fresh-line)
+  (dotimes (i (* 4 *rule-depth*))
+    (format t " ")))
+
+(defun debug-rule-interesting (rule)
+  (when (member rule '(8 42 11 31))
+    t))
+
+(defun flatten (lst &aux result)
+  (labels ((rflatten (lst1)
+             (dolist (el lst1 result)
+               (unless (null el)
+                 (if (listp el)
+                     (rflatten el)
+                     (push el result))))))
+    (nreverse (rflatten lst))))
+
+(defun eval-rule-low (messages rule rules)
+  (declare (type list messages)
+           (type rule-number rule)
+           (type list rules))
   (let ((disjunction (rule-disjunction rule rules)))
     (loop for sub-rule in disjunction
-          for pos = (sub-rule-match-p message start sub-rule rules)
-          until pos
-          finally (return pos))))
+          collect (eval-subrule messages
+                                sub-rule
+                                rules)
+            into remaining-messages
+          finally (progn
+                    (setf remaining-messages
+                          (remove-duplicates (flatten remaining-messages)
+                                             :test #'string=))
+                    ;; (when (and (consp remaining-messages)
+                    ;;            (> (length remaining-messages) 1))
+                    ;;   (debug-print-depth)
+                    ;;   (format t "rule ~S returns: ~S~%" rule remaining-messages))
+                    (return remaining-messages)))))
+
+(defun eval-rule (messages rule rules)
+  (declare (type list messages)
+           (type rule-number rule)
+           (type list rules))
+  (when (debug-rule-interesting rule)
+    (debug-print-depth)
+    (format t "rule ~S on ~S~%" rule messages))
+  (let ((result (let ((*rule-depth* (1+ *rule-depth*)))
+                  (eval-rule-low messages rule rules))))
+    (check-type result list)
+    (when (debug-rule-interesting rule)
+      (debug-print-depth)
+      (format t "-> rule ~S returns ~S (interesting!)" rule result))
+    result))
 
 (defun valid-message-p (message rules)
-  (rule-match-p 0 message 0 rules))
+  (eval-rule (list message) +rule-zero+ rules))
 
 (defun count-valid-messages (document)
   (destructuring-bind (rules messages) document
@@ -689,6 +759,20 @@ abbbabbbbababbbbabbabbbb
   (assert (= 165 (part-one *input*)))
 
   (assert (= 3 (part-one *example-input2*)))
-  ;; (assert (= 12 (part-two *example-input2*)))
-  ;; (assert (= -1 (part-two *input*)))
+
+  (assert (valid-message-p "aaaabbaabbaaaaaaabbbabbbaaabbaabaaa" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "aaabbbbbbaaaabaababaabababbabaaabbababababaaa" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "ababaaaaaabaaab" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "ababaaaaabbbaba" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "baabbaaaabbaaaababbaababb" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "bbabbbbaabaabba" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "aaaaabbaabaaaaababaa" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "aabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "abbbbabbbbaaaababbbbbbaaaababb" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "babbbbaabbbbbabbbbbbaabaaabaaa" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "bbbababbbbaaaaaaaabbababaaababaabab" (first (update-document (parse-document-string *example-input2*)))))
+  (assert (valid-message-p "bbbbbbbaaaabbbbaaabbabaaa" (first (update-document (parse-document-string *example-input2*)))))
+
+  (assert (= 12 (part-two *example-input2*)))
+  (assert (= 274 (part-two *input*)))
   )
