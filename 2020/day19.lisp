@@ -671,10 +671,6 @@ abbbabbbbababbbbabbabbbb
   (dotimes (i (* 4 *rule-depth*))
     (format t " ")))
 
-(defun debug-rule-interesting (rule)
-  (when (member rule '(8 42 11 31))
-    t))
-
 (defun flatten (lst &aux result)
   (labels ((rflatten (lst1)
              (dolist (el lst1 result)
@@ -708,15 +704,9 @@ abbbabbbbababbbbabbabbbb
   (declare (type list messages)
            (type rule-number rule)
            (type list rules))
-  (when (debug-rule-interesting rule)
-    (debug-print-depth)
-    (format t "rule ~S on ~S~%" rule messages))
   (let ((result (let ((*rule-depth* (1+ *rule-depth*)))
                   (eval-rule-low messages rule rules))))
     (check-type result list)
-    (when (debug-rule-interesting rule)
-      (debug-print-depth)
-      (format t "-> rule ~S returns ~S (interesting!)" rule result))
     result))
 
 (defun valid-message-p (message rules)
@@ -756,23 +746,13 @@ abbbabbbbababbbbabbabbbb
 
 (defun test ()
   (assert (= 2 (part-one *example-input*)))
+
+  ;; This is the answer to Part One.
   (assert (= 165 (part-one *input*)))
 
   (assert (= 3 (part-one *example-input2*)))
 
-  (assert (valid-message-p "aaaabbaabbaaaaaaabbbabbbaaabbaabaaa" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "aaabbbbbbaaaabaababaabababbabaaabbababababaaa" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "ababaaaaaabaaab" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "ababaaaaabbbaba" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "baabbaaaabbaaaababbaababb" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "bbabbbbaabaabba" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "aaaaabbaabaaaaababaa" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "aabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "abbbbabbbbaaaababbbbbbaaaababb" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "babbbbaabbbbbabbbbbbaabaaabaaa" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "bbbababbbbaaaaaaaabbababaaababaabab" (first (update-document (parse-document-string *example-input2*)))))
-  (assert (valid-message-p "bbbbbbbaaaabbbbaaabbabaaa" (first (update-document (parse-document-string *example-input2*)))))
-
   (assert (= 12 (part-two *example-input2*)))
-  (assert (= 274 (part-two *input*)))
-  )
+
+  ;; This is the answer to Part Two.
+  (assert (= 274 (part-two *input*))))
