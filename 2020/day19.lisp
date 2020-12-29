@@ -680,7 +680,7 @@ abbbabbbbababbbbabbabbbb
                      (push el result))))))
     (nreverse (rflatten lst))))
 
-(defun eval-rule-low (messages rule rules)
+(defun eval-rule (messages rule rules)
   (declare (type list messages)
            (type rule-number rule)
            (type list rules))
@@ -694,20 +694,7 @@ abbbabbbbababbbbabbabbbb
                     (setf remaining-messages
                           (remove-duplicates (flatten remaining-messages)
                                              :test #'string=))
-                    ;; (when (and (consp remaining-messages)
-                    ;;            (> (length remaining-messages) 1))
-                    ;;   (debug-print-depth)
-                    ;;   (format t "rule ~S returns: ~S~%" rule remaining-messages))
                     (return remaining-messages)))))
-
-(defun eval-rule (messages rule rules)
-  (declare (type list messages)
-           (type rule-number rule)
-           (type list rules))
-  (let ((result (let ((*rule-depth* (1+ *rule-depth*)))
-                  (eval-rule-low messages rule rules))))
-    (check-type result list)
-    result))
 
 (defun valid-message-p (message rules)
   (eval-rule (list message) +rule-zero+ rules))
