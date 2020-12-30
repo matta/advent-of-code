@@ -1910,6 +1910,12 @@ respectively.  Each # character in the tile is a bit set in the integer."
     (print-tile-color destination (aref sides +bottom+))
     (format destination "~%")))
 
+(defun tile-equal (tile-a tile-b)
+  (and (eql (slot-value tile-a 'id)
+            (slot-value tile-b 'id))
+       (equalp (slot-value tile-a 'sides)
+               (slot-value tile-b 'sides))))
+
 (defun tile-to-string (tile)
   (with-output-to-string (out)
     (print-tile out tile)))
@@ -2033,6 +2039,150 @@ indices in the integer, where #\. is zero and #\# is one."
             tile)
         finally (return results)))
 
+;;;;
+;;;; placement - 2d square array sqrt(num tiles)
+;;;;
+;;;; placed-p - id -> boolean
+;;;;   placed: hash tile of id -> tile
+;;;;
+;;;; fits-p - tile top left -> tile-list
+;;;;   sides[2]: hash table of color -> tile
+;;;;
+;;;;     Returns tiles that match top and left, which may be nil.  Note: if
+;;;;     both are nil, return all possible tiles.
+;;;;
+;;;; compute-placement y x
+;;;;   if y x out of bounds
+;;;;     return t  ;; base case
+;;;;   candidates = fits-p <criteria for y x>
+;;;;   for each candidate
+;;;;     place candidate
+;;;;     when compute-placement y' x'
+;;;;       return t
+;;;;     unplace candidate
+;;;;   return nil
+;;;;
+
+(defun all-sides (tiles)
+  (let ((all-sides))
+    (flet ((push-side (label index tile)
+             (push (format nil "~a-~d-~d"
+                           label
+                           (aref (slot-value tile 'sides) index)
+                           (slot-value tile 'id))
+                   all-sides)))
+      (loop for tile in tiles
+            do (push-side "t" +top+ tile)
+            do (push-side "r" +right+ tile)
+            do (push-side "b" +bottom+ tile)
+            do (push-side "l" +left+ tile)))
+    all-sides))
+
+(defun make-side-table (tiles)
+  "Returns a data structure that makes it easy to find tiles by side index
+and color.  See FIND-TILES-BY-SIDE."
+  (flet ((make-index (side-index)
+           (let ((table (make-hash-table)))
+             (loop for tile in tiles
+                   do (push tile
+                            (gethash (aref (slot-value tile 'sides)
+                                           side-index)
+                                     table)))
+             table)))
+    (make-array +sides+ :initial-contents (loop for side below +sides+
+                                                collect (make-index side)))))
+
+(defun find-tiles-by-side (side color table)
+  "Given a SIDE index [0..3] and COLOR, returns a list of tiles that match.
+The TABLE is that created by MAKE-SIDE-TABLE."
+  (gethash color (aref table side) nil))
+
+(defun place-tiles (tiles)
+  (let* ((tile-count (length tiles))
+         (stride (ceiling (sqrt tile-count)))
+         (placed-array (make-array tile-count :fill-pointer 0))
+         (placed-hash-table (make-hash-table))
+         (side-table (make-side-table (permute-tiles tiles))))
+    ;; (format t "tile-count ~d stride ~d~%" tile-count stride)
+    (assert (= tile-count (* stride stride)))
+    (labels
+        ((push-tile (tile)
+           ;; (format t "pushing at ~d : ~a~%" (length placed-array) tile)
+           (vector-push tile placed-array)
+           (assert (not (gethash (slot-value tile 'id) placed-hash-table nil)))
+           (setf (gethash (slot-value tile 'id)
+                          placed-hash-table)
+                 t))
+
+         (pop-tile ()
+           (remhash (slot-value (vector-pop placed-array)
+                                'id)
+                    placed-hash-table))
+
+         (placedp (tile)
+           (gethash (slot-value tile 'id) placed-hash-table nil))
+
+         (required-left-color (index)
+           "Returns the color the left side of the tile at INDEX must be.
+I.e. the color of the right side of the tile to the left of it.  Returns
+nil if INDEX is in column zero (i.e. there is no tile to the left)."
+           (if (= 0 (mod index stride))
+               nil
+               (aref (slot-value (aref placed-array (1- index))
+                                 'sides)
+                     +right+)))
+
+         (required-top-color (index)
+           "Returns the color the top side of the tile at INDEX must be.
+I.e. the color of the bottom side of the tile above it.  Returns nil if
+INDEX is in the top row."
+           (if (< index stride)
+               nil
+               (aref (slot-value (aref placed-array (- index stride))
+                                 'sides)
+                     +bottom+)))
+
+         (candidate-tiles (index)
+           (if (= 0 index)
+               (permute-tiles tiles)
+               (let* ((left-color (required-left-color index))
+                      (top-color (required-top-color index))
+                      (left-tiles (if left-color
+                                      (find-tiles-by-side
+                                       +left+ left-color side-table)))
+                      (top-tiles (if top-color
+                                     (find-tiles-by-side
+                                      +top+ top-color side-table))))
+                 (assert (or left-color top-color))
+                 ;; (format t "candidates for ~D:~%  left ~S ~S~%  top ~S ~S~%"
+                 ;;         index left-color left-tiles top-color top-tiles)
+                 (remove-if #'placedp
+                            (cond ((and left-color top-color)
+                                   (intersection left-tiles top-tiles
+                                                 :test #'tile-equal))
+                                  (left-color left-tiles)
+                                  (top-color top-tiles))))))
+
+         (place-tiles (index)
+           (if (= index tile-count)
+               placed-array
+               (let ((candidates (candidate-tiles index)))
+                 (dolist (tile candidates)
+                   (push-tile tile)
+                   (if (place-tiles (1+ index))
+                       (return placed-array))
+                   (pop-tile))))))
+
+      (let* ((placed (place-tiles 0))
+             (corners (list (aref placed 0)
+                            (aref placed (- stride 1))
+                            (aref placed (- tile-count stride))
+                            (aref placed (- tile-count 1)))))
+        (values (reduce #'*
+                        corners
+                        :key #'(lambda (tile) (slot-value tile 'id)))
+                corners
+                placed)))))
 
 (defun test ()
   (assert (eql #B1000000000 (flip-side 1)))
@@ -2160,4 +2310,9 @@ indices in the integer, where #\. is zero and #\# is one."
 .        .
 ..........
 "
-      (tile-to-string tile)))))
+            (tile-to-string tile))))
+
+  (assert (eql 20899048083289 (place-tiles (parse-tiles *example-input*))))
+
+  ;; This is the answer to Part One.
+  (assert (eql 18262194216271 (place-tiles (parse-tiles *input*)))))
