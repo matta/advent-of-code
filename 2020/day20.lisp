@@ -1876,6 +1876,9 @@ respectively.  Each # character in the tile is a bit set in the integer."
   (with-output-to-string (out)
     (print-tile-color out integer)))
 
+(defmethod tile-side ((object tile) index)
+  (aref (slot-value object 'sides) index))
+
 (defmethod print-object ((object tile) stream)
   (print-unreadable-object (object stream :type t)
     (with-slots (id sides) object
@@ -2069,7 +2072,7 @@ indices in the integer, where #\. is zero and #\# is one."
     (flet ((push-side (label index tile)
              (push (format nil "~a-~d-~d"
                            label
-                           (aref (slot-value tile 'sides) index)
+                           (tile-side tile index)
                            (tile-id tile))
                    all-sides)))
       (loop for tile in tiles
@@ -2086,9 +2089,7 @@ and color.  See FIND-TILES-BY-SIDE."
            (let ((table (make-hash-table)))
              (loop for tile in tiles
                    do (push tile
-                            (gethash (aref (slot-value tile 'sides)
-                                           side-index)
-                                     table)))
+                            (gethash (tile-side tile side-index) table)))
              table)))
     (make-array +sides+ :initial-contents (loop for side below +sides+
                                                 collect (make-index side)))))
@@ -2128,9 +2129,7 @@ I.e. the color of the right side of the tile to the left of it.  Returns
 nil if INDEX is in column zero (i.e. there is no tile to the left)."
            (if (= 0 (mod index stride))
                nil
-               (aref (slot-value (aref placed-array (1- index))
-                                 'sides)
-                     +right+)))
+               (tile-side (aref placed-array (1- index)) +right+)))
 
          (required-top-color (index)
            "Returns the color the top side of the tile at INDEX must be.
@@ -2138,8 +2137,7 @@ I.e. the color of the bottom side of the tile above it.  Returns nil if
 INDEX is in the top row."
            (if (< index stride)
                nil
-               (aref (slot-value (aref placed-array (- index stride))
-                                 'sides)
+               (tile-side (aref placed-array (- index stride))
                      +bottom+)))
 
          (candidate-tiles (index)
