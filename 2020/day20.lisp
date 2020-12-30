@@ -1855,6 +1855,7 @@ Tile 3769:
     :documentation "The ID of this tile."
     :initarg :id
     :type integer
+    :reader tile-id
     :initform (error "Must supply :id."))
    (sides
     :documentation "An array of integer holding the color of each side of
@@ -1911,8 +1912,8 @@ respectively.  Each # character in the tile is a bit set in the integer."
     (format destination "~%")))
 
 (defun tile-equal (tile-a tile-b)
-  (and (eql (slot-value tile-a 'id)
-            (slot-value tile-b 'id))
+  (and (eql (tile-id tile-a)
+            (tile-id tile-b))
        (equalp (slot-value tile-a 'sides)
                (slot-value tile-b 'sides))))
 
@@ -2069,7 +2070,7 @@ indices in the integer, where #\. is zero and #\# is one."
              (push (format nil "~a-~d-~d"
                            label
                            (aref (slot-value tile 'sides) index)
-                           (slot-value tile 'id))
+                           (tile-id tile))
                    all-sides)))
       (loop for tile in tiles
             do (push-side "t" +top+ tile)
@@ -2109,18 +2110,17 @@ The TABLE is that created by MAKE-SIDE-TABLE."
         ((push-tile (tile)
            ;; (format t "pushing at ~d : ~a~%" (length placed-array) tile)
            (vector-push tile placed-array)
-           (assert (not (gethash (slot-value tile 'id) placed-hash-table nil)))
-           (setf (gethash (slot-value tile 'id)
+           (assert (not (gethash (tile-id tile) placed-hash-table nil)))
+           (setf (gethash (tile-id tile)
                           placed-hash-table)
                  t))
 
          (pop-tile ()
-           (remhash (slot-value (vector-pop placed-array)
-                                'id)
+           (remhash (tile-id (vector-pop placed-array))
                     placed-hash-table))
 
          (placedp (tile)
-           (gethash (slot-value tile 'id) placed-hash-table nil))
+           (gethash (tile-id tile) placed-hash-table nil))
 
          (required-left-color (index)
            "Returns the color the left side of the tile at INDEX must be.
@@ -2180,7 +2180,7 @@ INDEX is in the top row."
                             (aref placed (- tile-count 1)))))
         (values (reduce #'*
                         corners
-                        :key #'(lambda (tile) (slot-value tile 'id)))
+                        :key #'(lambda (tile) (tile-id tile)))
                 corners
                 placed)))))
 
