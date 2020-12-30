@@ -1,5 +1,6 @@
-(defpackage :day20 (:use #:common-lisp))
-(in-package :day20)
+(defpackage #:ma-aoc-2020/day20
+  (:use #:common-lisp))
+(in-package #:ma-aoc-2020/day20)
 
 (defparameter *example-input*
   "Tile 2311:
