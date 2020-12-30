@@ -2016,14 +2016,23 @@ indices in the integer, where #\. is zero and #\# is one."
 (defun parse-tiles (str)
   (mapcar #'parse-tile (split-tiles str)))
 
-(defun permute-tile (tile)
+(defun permute-tile (function tile)
   (flet ((each-rotation (function tile &optional)
            (loop for i below 4
                  for it = tile then (rotate it)
-                 do (funcall function it)))
-         (print-it (tile) (print-tile t tile)))
-    (each-rotation #'print-it tile)
-    (each-rotation #'print-it (flip tile))))
+                 do (funcall function it))))
+    (each-rotation function tile)
+    (each-rotation function (flip tile))))
+
+(defun permute-tiles (tiles)
+  (loop with results
+        for tile in tiles
+        do (permute-tile
+            #'(lambda (permuted)
+                (push permuted results))
+            tile)
+        finally (return results)))
+
 
 (defun test ()
   (assert (eql #B1000000000 (flip-side 1)))
