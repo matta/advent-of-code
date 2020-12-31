@@ -2337,6 +2337,28 @@ INDEX is in the top row."
                                        #*10
                                        #*10)))))
 
+  (let ((shifted))
+    (each-shifted-image #'(lambda (img)
+                            (push img shifted))
+                        (parse-image #("#."
+                                       ".#"))
+                        '(3 3))
+    (setq shifted (reverse shifted))
+    (assert (= 4 (length shifted)))
+    (assert (equalp shifted
+                    (list (parse-image #("#.."
+                                         ".#."
+                                         "..."))
+                          (parse-image #(".#."
+                                         "..#"
+                                         "..."))
+                          (parse-image #("..."
+                                         "#.."
+                                         ".#."))
+                          (parse-image #("..."
+                                         ".#."
+                                         "..#"))))))
+
   (assert (= 20899048083289 (place-tiles (parse-tiles *example-input*))))
 
   ;; This is the answer to Part One.
