@@ -2019,16 +2019,6 @@ Tile 3769:
        (equalp (slot-value tile-a 'sides)
                (slot-value tile-b 'sides))))
 
-(defun trim-tile (tile)
-  (with-slots (id image) tile
-    (make-instance 'tile
-                   :id id
-                   :image (extract-array2d
-                           image
-                           1 1
-                           (- (array-dimension image 0) 2)
-                           (- (array-dimension image 1) 2)))))
-
 (defun rotate-tile (tile)
   (with-slots (id image) tile
     (make-instance 'tile
@@ -2207,35 +2197,34 @@ INDEX is in the top row."
                        (return result))
                    (pop-tile))))))
 
-      (let* ((placed (place-tiles 0))
-             (corners (list (aref placed 0 0)
-                            (aref placed 0 (1- stride))
-                            (aref placed (1- stride) 0)
-                            (aref placed (1- stride) (1- stride)))))
-        (values (reduce #'*
-                        corners
-                        :key #'(lambda (tile) (tile-id tile)))
-                corners
-                placed)))))
+      (place-tiles 0))))
+
+(defun part-one (str)
+  (let* ((placed (place-tiles (parse-tiles str)))
+         (max-dim0 (1- (array-dimension placed 0)))
+         (max-dim1 (1- (array-dimension placed 1)))
+         (corners (list (aref placed 0 0)
+                        (aref placed 0 max-dim1)
+                        (aref placed max-dim0 0)
+                        (aref placed max-dim0 max-dim1))))
+    (reduce #'*
+            corners
+            :key #'(lambda (tile) (tile-id tile)))))
 
 (defun sea-monster ()
   (parse-image *sea-monster*))
 
-(defun placement-to-image (tiles)
-  (labels ((as-image (thing)
-             (etypecase thing
-               (tile (slot-value thing 'image))
-               (array2d thing)))
-           (stack-horizontal (a b)
-             (stack-horizontal-array2d (as-image a) (as-image b)))
+(defun grid-to-image (images)
+  (labels ((stack-horizontal (a b)
+             (stack-horizontal-array2d a b))
            (stack-vertical (a b)
-             (stack-vertical-array2d (as-image a) (as-image b))))
+             (stack-vertical-array2d a b)))
     (reduce
      #'stack-horizontal
-     (loop for m below (array-dimension tiles 0)
+     (loop for m below (array-dimension images 0)
            collect (reduce #'stack-vertical
-                           (loop for n below (array-dimension tiles 1)
-                                 collect (aref tiles m n)))))))
+                           (loop for n below (array-dimension images 1)
+                                 collect (aref images m n)))))))
 
 (defun copy-into (from to to-y to-x)
   (check-type from array2d)
@@ -2263,10 +2252,10 @@ INDEX is in the top row."
   (let ((found))
     (each-shifted-image #'(lambda (shifted)
                             ;; (format t "~&shifted~%")
-                            (format-image shifted)
+                            ;; (format-image shifted)
                             (let ((masked (bit-and shifted image)))
                               ;; (format t "~&masked~%")
-                              (format-image masked)
+                              ;; (format-image masked)
                               (assert (equalp shifted (mirror-array2d (mirror-array2d shifted))))
                               (when (equalp shifted masked)
                                 (break)
@@ -2276,23 +2265,43 @@ INDEX is in the top row."
     (when found
       (reduce #'bit-ior found))))
 
-(defun find-sea-monster (tiles)
-  (multiple-value-bind (corner-product corners tiles) (place-tiles tiles)
+(defun trim-image (image)
+  (extract-array2d image
+                   1 1
+                   (- (array-dimension image 0) 2)
+                   (- (array-dimension image 1) 2)))
+
+(defun trim-tile-grid (tile-grid)
+  (let ((image-grid (make-array (array-dimensions tile-grid))))
+    (loop for m below (array-dimension tile-grid 0) do
+      (loop for n below (array-dimension tile-grid 1) do
+        (setf (aref image-grid m n)
+              (trim-image (slot-value (aref tile-grid m n)
+                                      'image)))))
+    image-grid))
+
+(defun placement-tiles (placement)
+  "Returns the tiles from the result of calling PLACE-TILES."
+  (multiple-value-bind (corner-product corners tiles) placement
     (declare (ignore corner-product) (ignore corners))
-    (let ((sea-monsters (permute-image (sea-monster)))
-          (image (placement-to-image tiles)))
-      (check-type image array2d)
-      (format t "sea monsters ~S~%" sea-monsters)
-      (loop for sea-monster in sea-monsters
-            for mask = (find-subimage-mask sea-monster image)
-            do (progn
-                 (format t "~%")
-                 (if mask
-                     (progn
-                       (format t "xxx yay!~%")
-                       (format-image mask)
-                       (return mask))
-                     (format t "no sea monster found!~%")))))))
+    tiles))
+
+(defun placement-to-image (placement)
+  (grid-to-image (trim-tile-grid (placement-tiles placement))))
+
+(defun find-sea-monster (image)
+  (let* ((sea-monster (sea-monster))
+         (images (permute-image image)))
+    (format t "~&Sea Monster~%")
+    (format-image sea-monster)
+    (loop for i below (length images)
+          do (format t "~&~%Image ~D~%" i)
+          do (format-image (elt images i))
+          finally (format t "~&"))
+    (loop for image in images
+          for mask = (find-subimage-mask sea-monster image)
+          if mask do
+            (return mask))))
 
 (defun test ()
   ;; parse-image supports row lists and row arrays.  Rows themselves
@@ -2351,7 +2360,7 @@ INDEX is in the top row."
                                          ".#."
                                          "..#"))))))
 
-  ;; Placement to image stacks the tiles as appropriate.
+  ;; grid-to-image stacks the images as appropriate.
   (assert
    (equalp
     (parse-image '("........"
@@ -2362,7 +2371,7 @@ INDEX is in the top row."
                    ".#....#."
                    "..#..#.."
                    "........"))
-    (placement-to-image
+    (grid-to-image
      (make-array
       '(2 2)
       :initial-contents
@@ -2383,7 +2392,7 @@ INDEX is in the top row."
                           ".#.."
                           "...."))))))))
 
-  (assert (= 20899048083289 (place-tiles (parse-tiles *example-input*))))
+  (assert (= 20899048083289 (part-one *example-input*)))
 
   ;; This is the answer to Part One.
-  (assert (= 18262194216271 (place-tiles (parse-tiles *input*)))))
+  (assert (= 18262194216271 (part-one *input*))))
