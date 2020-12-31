@@ -1840,6 +1840,49 @@ Tile 3769:
 ###.#.#.#.
 .##..##...")
 
+(deftype array2d () '(array * (* *)))
+
+(defun transpose-array2d (a)
+  (check-type a array2d)
+  "Return a two dimentional matrix, transposed."
+  (let* ((m (array-dimension a 0))
+         (n (array-dimension a 1))
+         (b (make-array `(,n ,m) :element-type (array-element-type a))))
+    (loop for i from 0 below m do
+      (loop for j from 0 below n do
+        (setf (aref b j i)
+              (aref a i j))))
+    b))
+
+(defun mirror-array2d (a)
+  (check-type a array2d)
+  "Return a mirror of a two dimensional array. The rows are reversed."
+  (let* ((b (make-array (array-dimensions a) :element-type (array-element-type a)))
+         (n (array-dimension a 1)))
+    (loop for i from 0 below (array-dimension a 0) do
+      (loop for j from 0 below n do
+        (setf (aref b i j)
+              (aref a i (- n 1 j)))))
+    b))
+
+(defun rotate-array2d (a)
+  (check-type a array2d)
+  (mirror-array2d (transpose-array2d a)))
+
+(defun extract-array2d (a start-y start-x dim-y dim-x)
+  (check-type a array2d)
+  (assert (<= 0 start-y (array-dimension a 0)))
+  (assert (<= 0 start-x (array-dimension a 1)))
+  (assert (<= 0 (+ start-y dim-y) (array-dimension a 0)))
+  (assert (<= 0 (+ start-x dim-x) (array-dimension a 1)))
+  (let ((e (make-array (list dim-y dim-x)
+                       :element-type (array-element-type a))))
+    (loop for y below dim-y do
+        (loop for x below dim-x do
+          (setf (aref e y x)
+                (aref a (+ start-y y) (+ start-x x)))))
+      e))
+
 (defconstant +top+ 0)
 (defconstant +right+ 1)
 (defconstant +bottom+ 2)
@@ -1857,114 +1900,55 @@ Tile 3769:
     :type integer
     :reader tile-id
     :initform (error "Must supply :id."))
+   (image
+    :initarg :image
+    :type array2d
+    :initform (error "Must supply :image."))
    (sides
-    :documentation "An array of integer holding the color of each side of
-the tile -- a sparse and partial representation of the entire matrix in the
-problem's input data.  The indices 0..3 are top, right, bottom, and left
-respectively.  Each # character in the tile is a bit set in the integer."
-    :initarg :sides
-    :type side-array
-    :initform (error "Must supply :sides."))))
+    :type side-array)))
 
-(defun print-tile-color (destination integer)
-  (loop for index below +side-bit-length+
-        do (format destination "~c" (if (logbitp index integer)
-                                        #\#
-                                        #\.))))
-
-(defun tile-color-to-string (integer)
-  (with-output-to-string (out)
-    (print-tile-color out integer)))
+(defmethod initialize-instance :after ((object tile) &key)
+  (with-slots (image sides) object
+    (destructuring-bind (dim-y dim-x) (array-dimensions image)
+      (setf sides
+            (vector
+             (extract-array2d image 0 0 1 dim-x)          ; top
+             (extract-array2d image 0 (1- dim-x) dim-y 1) ; left
+             (extract-array2d image (1- dim-y) 0 1 dim-x) ; bottom
+             (extract-array2d image 0 0 dim-y 1))))))     ; right
 
 (defmethod tile-side ((object tile) index)
   (aref (slot-value object 'sides) index))
 
 (defmethod print-object ((object tile) stream)
   (print-unreadable-object (object stream :type t)
-    (with-slots (id sides) object
-      :do (format stream "id: ~d sides: ~S" id sides))))
-
-(defun check-tile (tile)
-  (let ((high-bit (1- +side-bit-length+)))
-    (with-slots (sides) tile
-      (assert (equal (logbitp 0 (aref sides +top+))
-                     (logbitp 0 (aref sides +left+))))
-
-      (assert (equal (logbitp high-bit (aref sides +top+))
-                     (logbitp 0 (aref sides +right+))))
-
-      (assert (equal (logbitp high-bit (aref sides +bottom+))
-                     (logbitp high-bit (aref sides +right+))))
-
-      (assert (equal (logbitp 0 (aref sides +bottom+))
-                     (logbitp high-bit (aref sides +left+))))))
-  tile)
-
-(defun print-tile (destination tile)
-  (with-slots (id sides) tile
-    (format destination "~&Tile: ~d~%" id)
-    (print-tile-color destination (aref sides +top+))
-    (format destination "~%")
-    (let ((left (tile-color-to-string (aref sides +left+)))
-          (right (tile-color-to-string (aref sides +right+))))
-      (loop for index from 1 below (1- (length left))
-            do (format destination "~c        ~c~%"
-                       (aref left index)
-                       (aref right index))))
-    (print-tile-color destination (aref sides +bottom+))
-    (format destination "~%")))
-
-(defun tile-equal (tile-a tile-b)
-  (and (eql (tile-id tile-a)
-            (tile-id tile-b))
-       (equalp (slot-value tile-a 'sides)
-               (slot-value tile-b 'sides))))
+    (with-slots (id image sides) object
+      :do (format stream "~&id: ~d~%image: ~S~%sides: ~S" id image sides))))
 
 (defun tile-to-string (tile)
   (with-output-to-string (out)
     (print-tile out tile)))
 
-(defun matches-p (side-a tile-a tile-b)
-  "Returns true if TILE-A and TILE-B share a common side color when
-adjoined along TILE-A's SIDE-A."
-  (flet ((opposite-side (side)
-           (mod (+ side 2) +sides+)))
-    (with-slots ((sides-a sides)) tile-a
-      (with-slots ((sides-b sides)) tile-b
-        (eql (aref sides-a side-a)
-             (aref sides-b (opposite-side side-a)))))))
+(defun tile-equal (tile-a tile-b)
+  (and (= (tile-id tile-a)
+          (tile-id tile-b))
+       (equalp (slot-value tile-a 'sides)
+               (slot-value tile-b 'sides))))
 
-(defun flip-side (side)
-  (let ((flipped 0))
-    (dotimes (position +side-bit-length+)
-      (setf flipped (logior (ash flipped 1) (logand side 1)))
-      (setf side (ash side -1)))
-    flipped))
-
-(defun rotate (tile)
+(defun rotate-tile (tile)
   "Returns TILE rotated clockwise one quarter rotation."
-  (with-slots (id sides) (check-tile tile)
-    (check-tile
-     (make-instance 'tile
-                    :id id
-                    :sides (make-sides
-                            (flip-side (aref sides +left+))
-                            (aref sides +top+)
-                            (flip-side (aref sides +right+))
-                            (aref sides +bottom+))))))
+  (with-slots (id image) tile
+    (make-instance 'tile
+                   :id id
+                   :image (rotate-array2d image))))
 
-(defun flip (tile)
+(defun mirror-tile (tile)
   "Flips a tile on the vertical axis.  Left becomes right, right becomes
 left, top and bottom flip orientation."
-  (with-slots (id sides) (check-tile tile)
-    (check-tile
-     (make-instance 'tile
-                    :id id
-                    :sides (make-sides
-                            (flip-side (aref sides +top+))
-                            (aref sides +left+)
-                            (flip-side (aref sides +bottom+))
-                            (aref sides +right+))))))
+  (with-slots (id image) tile
+    (make-instance 'tile
+                   :id id
+                   :image (mirror-array2d image))))
 
 (defun split-sequence (needle haystack &key (start 0) end)
   (loop with needle-length = (length needle)
@@ -1987,41 +1971,24 @@ left, top and bottom flip orientation."
                         :start (position-if #'digit-char-p str)
                         :junk-allowed t)))
 
-(defun parse-tile-color (str)
-  "Parse STR into an integer.  Indices in the string correspond 1:1 to bit
-indices in the integer, where #\. is zero and #\# is one."
-  (declare (type string str))
-  (loop with num = 0
-        for bit below (length str)
-        do (ecase (aref str bit)
-             (#\#
-              (setf num (logior num (ash 1 bit))))
-             (#\.))
-        finally (return num)))
-
-(defun make-sides (top right bottom left)
-  (make-array 4 :element-type 'integer
-                :initial-contents (list top right bottom left)))
-
 (defun parse-tile-image (rows)
-  (let ((top (parse-tile-color (car rows)))
-        (bottom (parse-tile-color (car (last rows))))
-        left right)
-    (loop for row in rows
-          collect (aref row 0) into left-list
-          collect (aref row (1- (length row))) into right-list
-          finally (progn
-                    (setf right (parse-tile-color
-                                 (coerce right-list 'string)))
-                    (setf left (parse-tile-color
-                                (coerce left-list 'string)))))
-    (make-sides top right bottom left)))
+  (loop with image = (make-array (list (length rows)
+                                       (length (first rows)))
+                                 :element-type 'bit)
+        for y below (length rows)
+        for row in rows do
+          (loop for x below (length row)
+                for ch across row do
+                  (setf (aref image y x)
+                        (ecase ch
+                          (#\# 1)
+                          (#\. 0))))
+        finally (return image)))
 
 (defun parse-tile (str)
   (destructuring-bind (id &rest rows) (split-lines str)
-    (check-tile
-     (make-instance 'tile :id (parse-tile-id id)
-                          :sides (parse-tile-image rows)))))
+    (make-instance 'tile :id (parse-tile-id id)
+                          :image (parse-tile-image rows))))
 
 (defun parse-tiles (str)
   (mapcar #'parse-tile (split-tiles str)))
@@ -2029,10 +1996,10 @@ indices in the integer, where #\. is zero and #\# is one."
 (defun permute-tile (function tile)
   (flet ((each-rotation (function tile &optional)
            (loop for i below 4
-                 for it = tile then (rotate it)
+                 for it = tile then (rotate-tile it)
                  do (funcall function it))))
     (each-rotation function tile)
-    (each-rotation function (flip tile))))
+    (each-rotation function (mirror-tile tile))))
 
 (defun permute-tiles (tiles)
   (loop with results
@@ -2043,50 +2010,11 @@ indices in the integer, where #\. is zero and #\# is one."
             tile)
         finally (return results)))
 
-;;;;
-;;;; placement - 2d square array sqrt(num tiles)
-;;;;
-;;;; placed-p - id -> boolean
-;;;;   placed: hash tile of id -> tile
-;;;;
-;;;; fits-p - tile top left -> tile-list
-;;;;   sides[2]: hash table of color -> tile
-;;;;
-;;;;     Returns tiles that match top and left, which may be nil.  Note: if
-;;;;     both are nil, return all possible tiles.
-;;;;
-;;;; compute-placement y x
-;;;;   if y x out of bounds
-;;;;     return t  ;; base case
-;;;;   candidates = fits-p <criteria for y x>
-;;;;   for each candidate
-;;;;     place candidate
-;;;;     when compute-placement y' x'
-;;;;       return t
-;;;;     unplace candidate
-;;;;   return nil
-;;;;
-
-(defun all-sides (tiles)
-  (let ((all-sides))
-    (flet ((push-side (label index tile)
-             (push (format nil "~a-~d-~d"
-                           label
-                           (tile-side tile index)
-                           (tile-id tile))
-                   all-sides)))
-      (loop for tile in tiles
-            do (push-side "t" +top+ tile)
-            do (push-side "r" +right+ tile)
-            do (push-side "b" +bottom+ tile)
-            do (push-side "l" +left+ tile)))
-    all-sides))
-
 (defun make-side-table (tiles)
   "Returns a data structure that makes it easy to find tiles by side index
 and color.  See FIND-TILES-BY-SIDE."
   (flet ((make-index (side-index)
-           (let ((table (make-hash-table)))
+           (let ((table (make-hash-table :test 'equalp)))
              (loop for tile in tiles
                    do (push tile
                             (gethash (tile-side tile side-index) table)))
@@ -2183,134 +2111,7 @@ INDEX is in the top row."
                 placed)))))
 
 (defun test ()
-  (assert (eql #B1000000000 (flip-side 1)))
-  (assert (eql #B0001100000 (flip-side #B11000)))
-
-  (let ((tile (parse-tile "Tile 1234:
-##........
-..........
-..........
-..........
-..........
-..........
-..........
-..........
-..........
-..........")))
-    (assert
-     (equal "#<TILE id: 1234 sides: #(3 0 0 1)>"
-            (format nil "~a" tile)))
-    (assert
-     (equal "Tile: 1234
-##........
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-..........
-"      (with-output-to-string (out) (print-tile out tile))))
-
-    (setf tile (rotate tile))
-    (assert
-     (equal "#<TILE id: 1234 sides: #(512 3 0 0)>"
-            (format nil "~a" tile)))
-    (assert
-     (equal "Tile: 1234
-.........#
-.        #
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-..........
-"
-            (tile-to-string tile)))
-
-    (setf tile (rotate tile))
-    (assert
-     (equal "#<TILE id: 1234 sides: #(0 512 768 0)>"
-            (format nil "~a" tile)))
-    (assert
-     (equal "Tile: 1234
-..........
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-........##
-"
-            (tile-to-string tile)))
-
-    (setf tile (rotate tile))
-    (assert
-     (equal "#<TILE id: 1234 sides: #(0 0 1 768)>"
-            (format nil "~a" tile)))
-    (assert
-     (equal "Tile: 1234
-..........
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-#        .
-#.........
-"
-            (tile-to-string tile)))
-
-
-    (setf tile (rotate tile))
-    (assert
-     (equal "#<TILE id: 1234 sides: #(3 0 0 1)>"
-            (format nil "~a" tile)))
-    (assert
-     (equal "Tile: 1234
-##........
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-..........
-"
-            (tile-to-string tile)))
-
-    (setf tile (flip tile))
-    (assert
-     (equal "#<TILE id: 1234 sides: #(768 1 0 0)>"
-            (format nil "~a" tile)))
-    (assert
-     (equal "Tile: 1234
-........##
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-.        .
-..........
-"
-            (tile-to-string tile))))
-
-  (assert (eql 20899048083289 (place-tiles (parse-tiles *example-input*))))
+  (assert (= 20899048083289 (place-tiles (parse-tiles *example-input*))))
 
   ;; This is the answer to Part One.
-  (assert (eql 18262194216271 (place-tiles (parse-tiles *input*)))))
+  (assert (= 18262194216271 (place-tiles (parse-tiles *input*)))))
