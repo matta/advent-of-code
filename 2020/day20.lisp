@@ -2076,7 +2076,7 @@ Tile 3769:
                         :start (position-if #'digit-char-p str)
                         :junk-allowed t)))
 
-(defun parse-tile-image (rows)
+(defun parse-image (rows)
   (loop with image = (make-array (list (length rows)
                                        (length (elt rows 0)))
                                  :element-type 'bit)
@@ -2095,18 +2095,19 @@ Tile 3769:
 (defun parse-tile (str)
   (destructuring-bind (id &rest rows) (split-lines str)
     (make-instance 'tile :id (parse-tile-id id)
-                          :image (parse-tile-image rows))))
+                          :image (parse-image rows))))
 
 (defun parse-tiles (str)
   (mapcar #'parse-tile (split-tiles str)))
 
 (defun permute-image (image)
-  (let ((permuted))
-    (loop for img in (list image (mirror-array2d image))
-          do (push img permuted)
-          do (dotimes (i 3)
-               (push (rotate-array2d (first permuted)) permuted)))
-    permuted))
+  (delete-duplicates
+   (loop for img in (list image (mirror-array2d image))
+         collect img
+         collect (setq img (rotate-array2d img))
+         collect (setq img (rotate-array2d img))
+         collect (setq img (rotate-array2d img)))
+   :test #'equalp))
 
 (defun permute-tile (function tile)
   (flet ((each-rotation (function tile &optional)
@@ -2232,7 +2233,7 @@ INDEX is in the top row."
                 placed)))))
 
 (defun sea-monster ()
-  (parse-tile-image *sea-monster*))
+  (parse-image *sea-monster*))
 
 (defun placement-to-image (tiles)
   (slot-value (reduce #'tile-stack-vertical
@@ -2302,14 +2303,39 @@ INDEX is in the top row."
                      (format t "no sea monster found!~%")))))))
 
 (defun test ()
-  ;; parse-tile-image supports row lists and row arrays.  Rows themselves
+  ;; parse-image supports row lists and row arrays.  Rows themselves
   ;; may be arrays/lists of 0 or . for zero and 1 or # for one.
   (let ((result #2A((1 0 1) (0 1 0))))
     (dolist (input '(((#\# #\. #\#) (#\. #\# #\.))
                      ("#.#" ".#.")
                      (#*101 #*010)
                      #(#*101 #*010)))
-      (assert (equalp result (parse-tile-image input)))))
+      (assert (equalp result (parse-image input)))))
+
+  ;; permute-image should produce the eight possible variants of a given
+  ;; image.
+  (assert (equalp (permute-image (parse-image #(#*111
+                                                #*100)))
+                  (list (parse-image #(#*111
+                                       #*100))
+                        (parse-image #(#*10
+                                       #*10
+                                       #*11))
+                        (parse-image #(#*001
+                                       #*111))
+                        (parse-image #(#*11
+                                       #*01
+                                       #*01))
+                        (parse-image #(#*100
+                                       #*111))
+                        (parse-image #(#*01
+                                       #*01
+                                       #*11))
+                        (parse-image #(#*111
+                                       #*001))
+                        (parse-image #(#*11
+                                       #*10
+                                       #*10)))))
 
   (assert (= 20899048083289 (place-tiles (parse-tiles *example-input*))))
 
