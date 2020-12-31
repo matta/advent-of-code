@@ -1997,6 +1997,11 @@ Tile 3769:
 
 (defun format-placement (tiles)
   (check-type tiles array2d)
+  (loop for m below (array-dimension tiles 0) do
+    (loop initially (format t "~&")
+          for n below (array-dimension tiles 1)
+          do (format t " ~D" (tile-id (aref tiles m n)))
+          finally (format t "~%")))
   (loop
     for m below (array-dimension tiles 0)
     do (loop
