@@ -1980,8 +1980,12 @@ Tile 3769:
           finally (format t "~%")
           for n below (array-dimension image 1) do
             (format t "~c" (ecase (aref image m n)
-                             (1 #\#)
-                             (0 #\.))))))
+                                       (1 #\#)
+                                       (0 #\.))))))
+
+(defun image-to-string (image)
+  (with-output-to-string (*standard-output*)
+    (format-image image)))
 
 (defun format-tile (tile)
   (with-slots (id image) tile
@@ -2084,7 +2088,7 @@ Tile 3769:
 
 (defun permute-image (image)
   (delete-duplicates
-   (loop for img in (list image (mirror-array2d image))
+   (loop for img in (list (mirror-array2d image) image)
          collect img
          collect (setq img (rotate-array2d img))
          collect (setq img (rotate-array2d img))
@@ -2106,7 +2110,7 @@ Tile 3769:
             #'(lambda (permuted)
                 (push permuted results))
             tile)
-        finally (return results)))
+        finally (return (nreverse results))))
 
 (defun make-side-table (tiles)
   "Returns a data structure that makes it easy to find tiles by side index
@@ -2328,37 +2332,14 @@ INDEX is in the top row."
   (assert (equalp (permute-image (parse-image #("###"
                                                 "#.."
                                                 "...")))
-                  '(#2A((1 1 1)
-                        (1 0 0)
-                        (0 0 0))
-
-                    #2A((1 0 0)
-                        (1 0 0)
-                        (1 1 0))
-
-                    #2A((0 0 0)
-                        (0 0 1)
-                        (1 1 1))
-
-                    #2A((0 1 1)
-                        (0 0 1)
-                        (0 0 1))
-
-                    #2A((0 0 0)
-                        (1 0 0)
-                        (1 1 1))
-
-                    #2A((0 0 1)
-                        (0 0 1)
-                        (0 1 1))
-
-                    #2A((1 1 1)
-                        (0 0 1)
-                        (0 0 0))
-
-                    #2A((1 1 0)
-                        (1 0 0)
-                        (1 0 0)))))
+                  '(#2A((0 0 0) (1 0 0) (1 1 1))
+                    #2A((0 0 1) (0 0 1) (0 1 1))
+                    #2A((1 1 1) (0 0 1) (0 0 0))
+                    #2A((1 1 0) (1 0 0) (1 0 0))
+                    #2A((1 1 1) (1 0 0) (0 0 0))
+                    #2A((1 0 0) (1 0 0) (1 1 0))
+                    #2A((0 0 0) (0 0 1) (1 1 1))
+                    #2A((0 1 1) (0 0 1) (0 0 1)))))
 
   ;; pad-image pads images with an edge of blank pixels.
   (assert (equalp (parse-image '("..."
@@ -2433,6 +2414,76 @@ INDEX is in the top row."
 
   ;; This is the answer to Part One.
   (assert (= 18262194216271 (part-one *input*)))
+
+  ;; Assert that the example's tile 1951, when permuted, includes the
+  ;; orientation present in the example solution's top left corner.
+  (assert (position
+           (parse-image '("#...##.#.."
+                          "..#.#..#.#"
+                          ".###....#."
+                          "###.##.##."
+                          ".###.#####"
+                          ".##.#....#"
+                          "#...######"
+                          ".....#..##"
+                          "#.####...#"
+                          "#.##...##."))
+           (permute-image (parse-image '("#.##...##."
+                                         "#.####...#"
+                                         ".....#..##"
+                                         "#...######"
+                                         ".##.#....#"
+                                         ".###.#####"
+                                         "###.##.##."
+                                         ".###....#."
+                                         "..#.#..#.#"
+                                         "#...##.#..")))
+           :test #'equalp))
+
+  ;; The placement found for the example input is identical to that given
+  ;; in the problem statement.
+  (assert (string=
+           (with-output-to-string (*standard-output*)
+             (format-placement (place-tiles
+                                (parse-tiles
+                                 *example-input*))))
+           " 1951 2311 3079
+ 2729 1427 2473
+ 2971 1489 1171
+ #...##.#.. ..###..### #.#.#####.
+ ..#.#..#.# ###...#.#. .#..######
+ .###....#. ..#....#.. ..#.......
+ ###.##.##. .#.#.#..## ######....
+ .###.##### ##...#.### ####.#..#.
+ .##.#....# ##.##.###. .#...#.##.
+ #...###### ####.#...# #.#####.##
+ .....#..## #...##..#. ..#.###...
+ #.####...# ##..#..... ..#.......
+ #.##...##. ..##.#..#. ..#.###...
+
+ #.##...##. ..##.#..#. ..#.###...
+ ##..#.##.. ..#..###.# ##.##....#
+ ##.####... .#.####.#. ..#.###..#
+ ####.#.#.. ...#.##### ###.#..###
+ .#.####... ...##..##. .######.##
+ .##..##.#. ....#...## #.#.#.#...
+ ....#..#.# #.#.#.##.# #.###.###.
+ ..#.#..... .#.##.#..# #.###.##..
+ ####.#.... .#..#.##.. .######...
+ ...#.#.#.# ###.##.#.. .##...####
+
+ ...#.#.#.# ###.##.#.. .##...####
+ ..#.#.###. ..##.##.## #..#.##..#
+ ..####.### ##.#...##. .#.#..#.##
+ #..#.#..#. ...#.#.#.. .####.###.
+ .#..####.# #..#.#.#.# ####.###..
+ .#####..## #####...#. .##....##.
+ ##.##..#.. ..#...#... .####...#.
+ #.#.###... .##..##... .####.##.#
+ #...###... ..##...#.. ...#..####
+ ..#.#....# ##.#.#.... ...##.....
+
+"))
 
   ;; Assert that the image with the snakes in it, given in the problem
   ;; statement, is produced with our placement code when given
