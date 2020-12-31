@@ -2029,20 +2029,6 @@ Tile 3769:
                            (- (array-dimension image 0) 2)
                            (- (array-dimension image 1) 2)))))
 
-(defun tile-stack-horizontal (a b)
-  (make-instance 'tile
-                 :id 0
-                 :image (stack-horizontal-array2d
-                         (slot-value a 'image)
-                         (slot-value b 'image))))
-
-(defun tile-stack-vertical (a b)
-  (make-instance 'tile
-                 :id 0
-                 :image (stack-vertical-array2d
-                         (slot-value a 'image)
-                         (slot-value b 'image))))
-
 (defun rotate-tile (tile)
   (with-slots (id image) tile
     (make-instance 'tile
@@ -2236,14 +2222,20 @@ INDEX is in the top row."
   (parse-image *sea-monster*))
 
 (defun placement-to-image (tiles)
-  (slot-value (reduce #'tile-stack-vertical
-                      (loop for m below (array-dimension
-                                         tiles 0)
-                            collect (reduce #'tile-stack-horizontal
-                                            (loop for n below (array-dimension
-                                                               tiles 1)
-                                                  collect (aref tiles m n)))))
-   'image))
+  (labels ((as-image (thing)
+             (etypecase thing
+               (tile (slot-value thing 'image))
+               (array2d thing)))
+           (stack-horizontal (a b)
+             (stack-horizontal-array2d (as-image a) (as-image b)))
+           (stack-vertical (a b)
+             (stack-vertical-array2d (as-image a) (as-image b))))
+    (reduce
+     #'stack-horizontal
+     (loop for m below (array-dimension tiles 0)
+           collect (reduce #'stack-vertical
+                           (loop for n below (array-dimension tiles 1)
+                                 collect (aref tiles m n)))))))
 
 (defun copy-into (from to to-y to-x)
   (check-type from array2d)
@@ -2358,6 +2350,38 @@ INDEX is in the top row."
                           (parse-image #("..."
                                          ".#."
                                          "..#"))))))
+
+  ;; Placement to image stacks the tiles as appropriate.
+  (assert
+   (equalp
+    (parse-image '("........"
+                   "..#..#.."
+                   ".#....#."
+                   "........"
+                   "........"
+                   ".#....#."
+                   "..#..#.."
+                   "........"))
+    (placement-to-image
+     (make-array
+      '(2 2)
+      :initial-contents
+      `((,(parse-image #("...."
+                         "..#."
+                         ".#.."
+                         "...."))
+          ,(parse-image #("...."
+                          ".#.."
+                          "..#."
+                          "....")))
+        (,(parse-image #("...."
+                         ".#.."
+                         "..#."
+                         "...."))
+          ,(parse-image #("...."
+                          "..#."
+                          ".#.."
+                          "...."))))))))
 
   (assert (= 20899048083289 (place-tiles (parse-tiles *example-input*))))
 
