@@ -2,6 +2,11 @@
   (:use #:common-lisp))
 (in-package #:ma-aoc-2020/day20)
 
+(defparameter *sea-monster*
+  '("..................#."
+    "#....##....##....###"
+    ".#..#..#..#..#..#..."))
+
 (defparameter *example-input*
   "Tile 2311:
 ..##.#..#.
@@ -1842,32 +1847,27 @@ Tile 3769:
 
 (deftype array2d () '(array * (* *)))
 
-(defun transpose-array2d (a)
-  (check-type a array2d)
-  "Return a two dimentional matrix, transposed."
-  (let* ((m (array-dimension a 0))
-         (n (array-dimension a 1))
-         (b (make-array `(,n ,m) :element-type (array-element-type a))))
-    (loop for i from 0 below m do
-      (loop for j from 0 below n do
-        (setf (aref b j i)
-              (aref a i j))))
-    b))
-
 (defun mirror-array2d (a)
   (check-type a array2d)
   "Return a mirror of a two dimensional array. The rows are reversed."
   (let* ((b (make-array (array-dimensions a) :element-type (array-element-type a)))
-         (n (array-dimension a 1)))
-    (loop for i from 0 below (array-dimension a 0) do
-      (loop for j from 0 below n do
-        (setf (aref b i j)
-              (aref a i (- n 1 j)))))
+         (maxi (1- (array-dimension a 0))))
+    (loop for j from 0 below (array-dimension a 1) do
+      (loop for i from 0 to maxi do
+        (setf (aref b i j) (aref a (- maxi i) j))))
     b))
 
 (defun rotate-array2d (a)
   (check-type a array2d)
-  (mirror-array2d (transpose-array2d a)))
+  (let ((b (make-array (reverse (array-dimensions a))
+                       :element-type (array-element-type a)))
+        (m (array-dimension a 0))
+        (n (array-dimension a 1)))
+    (loop for i below m do
+      (loop for j below n do
+        (setf (aref b (- n 1 j) i)
+              (aref a i j))))
+    b))
 
 (defun extract-array2d (a start-y start-x dim-y dim-x)
   (check-type a array2d)
@@ -1881,7 +1881,49 @@ Tile 3769:
         (loop for x below dim-x do
           (setf (aref e y x)
                 (aref a (+ start-y y) (+ start-x x)))))
-      e))
+    e))
+
+(defun stack-horizontal-array2d (a b)
+  (check-type a array2d)
+  (assert (= (array-dimension a 0)
+             (array-dimension b 0)))
+  (let* ((a-ydim (array-dimension a 0))
+         (a-xdim (array-dimension a 1))
+         (b-xdim (array-dimension b 1))
+         (stacked (make-array (list a-ydim (+ a-xdim b-xdim))
+                              :element-type (array-element-type a))))
+    (loop for y below a-ydim
+          do (loop for x below a-xdim
+                   do (setf (aref stacked y x)
+                            (aref a y x)))
+          do (loop for x below b-xdim
+                   do (setf (aref stacked y (+ x a-xdim))
+                            (aref b y x))))
+    stacked))
+
+(defun stack-vertical-array2d (a b)
+  (check-type a array2d)
+  (assert (= (array-dimension a 1)
+             (array-dimension b 1)))
+  (let* ((a-xdim (array-dimension a 1))
+         (a-ydim (array-dimension a 0))
+         (b-ydim (array-dimension b 0))
+         (stacked (make-array (list (+ a-ydim b-ydim) a-xdim)
+                              :element-type (array-element-type a))))
+    (loop for x below a-xdim
+          do (loop for y below a-ydim
+                   do (setf (aref stacked y x)
+                            (aref a y x)))
+          do (loop for y below b-ydim
+                   do (setf (aref stacked (+ y a-ydim) x)
+                            (aref b y x))))
+    stacked))
+
+(defun m2d (d0 d1)
+  (let ((a (make-array `(,d0 ,d1))))
+    (dotimes (i (* d0 d1))
+      (setf (row-major-aref a i) i))
+    a))
 
 (defconstant +top+ 0)
 (defconstant +right+ 1)
@@ -1917,17 +1959,59 @@ Tile 3769:
              (extract-array2d image (1- dim-y) 0 1 dim-x) ; bottom
              (extract-array2d image 0 0 dim-y 1))))))     ; right
 
+(defmethod tile-dimension ((object tile) index)
+  (array-dimension (slot-value object 'image) index))
+
+(defmethod tile-bit ((object tile) m n)
+  (aref (slot-value object 'image) m n))
+
 (defmethod tile-side ((object tile) index)
   (aref (slot-value object 'sides) index))
 
 (defmethod print-object ((object tile) stream)
-  (print-unreadable-object (object stream :type t)
-    (with-slots (id image sides) object
-      :do (format stream "~&id: ~d~%image: ~S~%sides: ~S" id image sides))))
+  (print-unreadable-object (object stream :type t :identity t)
+    (with-slots (id) object
+      :do (format stream "id: ~d" id))))
 
-(defun tile-to-string (tile)
-  (with-output-to-string (out)
-    (print-tile out tile)))
+(defun format-image (image)
+  (check-type image array2d)
+  (loop for m below (array-dimension image 0) do
+    (loop initially (format t "~&")
+          finally (format t "~%")
+          for n below (array-dimension image 1) do
+            (format t "~c" (ecase (aref image m n)
+                             (1 #\#)
+                             (0 #\.))))))
+
+(defun format-tile (tile)
+  (with-slots (id image) tile
+    (unless (zerop id)
+      (format t "~&Tile: ~d~%" id))
+    (loop for m below (array-dimension image 0)
+          do (loop initially (format t "~&")
+                   for n below (array-dimension image 1)
+                   do (format t "~c" (ecase (aref image m n)
+                                       (1 #\#)
+                                       (0 #\.)))
+                   finally (format t "~%")))))
+
+(defun format-placement (tiles)
+  (check-type tiles array2d)
+  (loop
+    for m below (array-dimension tiles 0)
+    do (loop
+         finally (format t "~%")
+         for m2 below (tile-dimension (aref tiles m 0) 0)
+         do (loop
+              finally (format t "~%")
+              for n below (array-dimension tiles 1)
+              do (loop
+                   initially (format t " ")
+                   with tile = (aref tiles m n)
+                   for n2 below (tile-dimension tile 1)
+                   do (format t "~a" (ecase (tile-bit tile m2 n2)
+                                       (1 #\#)
+                                       (0 #\.))))))))
 
 (defun tile-equal (tile-a tile-b)
   (and (= (tile-id tile-a)
@@ -1935,16 +2019,37 @@ Tile 3769:
        (equalp (slot-value tile-a 'sides)
                (slot-value tile-b 'sides))))
 
+(defun trim-tile (tile)
+  (with-slots (id image) tile
+    (make-instance 'tile
+                   :id id
+                   :image (extract-array2d
+                           image
+                           1 1
+                           (- (array-dimension image 0) 2)
+                           (- (array-dimension image 1) 2)))))
+
+(defun tile-stack-horizontal (a b)
+  (make-instance 'tile
+                 :id 0
+                 :image (stack-horizontal-array2d
+                         (slot-value a 'image)
+                         (slot-value b 'image))))
+
+(defun tile-stack-vertical (a b)
+  (make-instance 'tile
+                 :id 0
+                 :image (stack-vertical-array2d
+                         (slot-value a 'image)
+                         (slot-value b 'image))))
+
 (defun rotate-tile (tile)
-  "Returns TILE rotated clockwise one quarter rotation."
   (with-slots (id image) tile
     (make-instance 'tile
                    :id id
                    :image (rotate-array2d image))))
 
 (defun mirror-tile (tile)
-  "Flips a tile on the vertical axis.  Left becomes right, right becomes
-left, top and bottom flip orientation."
   (with-slots (id image) tile
     (make-instance 'tile
                    :id id
@@ -1973,14 +2078,16 @@ left, top and bottom flip orientation."
 
 (defun parse-tile-image (rows)
   (loop with image = (make-array (list (length rows)
-                                       (length (first rows)))
+                                       (length (elt rows 0)))
                                  :element-type 'bit)
         for y below (length rows)
-        for row in rows do
+        for row = (elt rows y) do
           (loop for x below (length row)
-                for ch across row do
+                for ch = (elt row x) do
                   (setf (aref image y x)
                         (ecase ch
+                          (1 1)
+                          (0 0)
                           (#\# 1)
                           (#\. 0))))
         finally (return image)))
@@ -1993,13 +2100,21 @@ left, top and bottom flip orientation."
 (defun parse-tiles (str)
   (mapcar #'parse-tile (split-tiles str)))
 
+(defun permute-image (image)
+  (let ((permuted))
+    (loop for img in (list image (mirror-array2d image))
+          do (push img permuted)
+          do (dotimes (i 3)
+               (push (rotate-array2d (first permuted)) permuted)))
+    permuted))
+
 (defun permute-tile (function tile)
   (flet ((each-rotation (function tile &optional)
            (loop for i below 4
                  for it = tile then (rotate-tile it)
                  do (funcall function it))))
-    (each-rotation function tile)
-    (each-rotation function (mirror-tile tile))))
+    (each-rotation function (mirror-tile tile))
+    (each-rotation function tile)))
 
 (defun permute-tiles (tiles)
   (loop with results
@@ -2091,26 +2206,111 @@ INDEX is in the top row."
 
          (place-tiles (index)
            (if (= index tile-count)
-               placed-array
-               (let ((candidates (candidate-tiles index)))
+               ;; Done!
+               (make-array (list stride stride)
+                           :element-type (array-element-type placed-array)
+                           :displaced-to placed-array)
+               ;; Not done. Push the next tile that fits or bail if there
+               ;; is none such.
+               (let ((candidates (candidate-tiles index))
+                     result)
                  (dolist (tile candidates)
                    (push-tile tile)
-                   (if (place-tiles (1+ index))
-                       (return placed-array))
+                   (if (setf result (place-tiles (1+ index)))
+                       (return result))
                    (pop-tile))))))
 
       (let* ((placed (place-tiles 0))
-             (corners (list (aref placed 0)
-                            (aref placed (- stride 1))
-                            (aref placed (- tile-count stride))
-                            (aref placed (- tile-count 1)))))
+             (corners (list (aref placed 0 0)
+                            (aref placed 0 (1- stride))
+                            (aref placed (1- stride) 0)
+                            (aref placed (1- stride) (1- stride)))))
         (values (reduce #'*
                         corners
                         :key #'(lambda (tile) (tile-id tile)))
                 corners
                 placed)))))
 
+(defun sea-monster ()
+  (parse-tile-image *sea-monster*))
+
+(defun placement-to-image (tiles)
+  (slot-value (reduce #'tile-stack-vertical
+                      (loop for m below (array-dimension
+                                         tiles 0)
+                            collect (reduce #'tile-stack-horizontal
+                                            (loop for n below (array-dimension
+                                                               tiles 1)
+                                                  collect (aref tiles m n)))))
+   'image))
+
+(defun copy-into (from to to-y to-x)
+  (check-type from array2d)
+  (check-type to array2d)
+  (assert (<= 0 to-y (+ to-y (array-dimension from 0)) (array-dimension to 0)))
+  (assert (<= 0 to-x (+ to-x (array-dimension from 1)) (array-dimension to 1)))
+  (loop for y below (array-dimension from 0) do
+    (loop for x below (array-dimension from 1) do
+      (setf (aref to (+ y to-y) (+ x to-x)) (aref from y x)))))
+
+(defun each-shifted-image (function image dimensions)
+  (check-type image array2d)
+  (assert (= 2 (length dimensions)))
+  (assert (<= (array-dimension image 0) (first dimensions)))
+  (assert (<= (array-dimension image 1) (second dimensions)))
+  (loop for shift-y to (- (first dimensions) (array-dimension image 0)) do
+    (loop for shift-x to (- (second dimensions) (array-dimension image 1)) do
+      (let ((shifted (make-array dimensions
+                                 :element-type 'bit
+                                 :initial-element 0)))
+        (copy-into image shifted shift-y shift-x)
+        (funcall function shifted)))))
+
+(defun find-subimage-mask (mask image)
+  (let ((found))
+    (each-shifted-image #'(lambda (shifted)
+                            ;; (format t "~&shifted~%")
+                            (format-image shifted)
+                            (let ((masked (bit-and shifted image)))
+                              ;; (format t "~&masked~%")
+                              (format-image masked)
+                              (assert (equalp shifted (mirror-array2d (mirror-array2d shifted))))
+                              (when (equalp shifted masked)
+                                (break)
+                                (push shifted found))))
+                        mask
+                        (array-dimensions image))
+    (when found
+      (reduce #'bit-ior found))))
+
+(defun find-sea-monster (tiles)
+  (multiple-value-bind (corner-product corners tiles) (place-tiles tiles)
+    (declare (ignore corner-product) (ignore corners))
+    (let ((sea-monsters (permute-image (sea-monster)))
+          (image (placement-to-image tiles)))
+      (check-type image array2d)
+      (format t "sea monsters ~S~%" sea-monsters)
+      (loop for sea-monster in sea-monsters
+            for mask = (find-subimage-mask sea-monster image)
+            do (progn
+                 (format t "~%")
+                 (if mask
+                     (progn
+                       (format t "xxx yay!~%")
+                       (format-image mask)
+                       (return mask))
+                     (format t "no sea monster found!~%")))))))
+
 (defun test ()
+  ;; parse-tile-image supports row lists and row arrays.  Rows themselves
+  ;; may be arrays/lists of 0 or . for zero and 1 or # for one.
+  (let ((result #2A((1 0 1) (0 1 0))))
+    (dolist (input '(((#\# #\. #\#) (#\. #\# #\.))
+                     ("#.#" ".#.")
+                     (#*101 #*010)
+                     #(#*101 #*010)))
+      (assert (equalp result (parse-tile-image input)))))
+
   (assert (= 20899048083289 (place-tiles (parse-tiles *example-input*))))
 
   ;; This is the answer to Part One.
