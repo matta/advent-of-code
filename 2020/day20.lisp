@@ -2069,6 +2069,7 @@ Tile 3769:
                         (ecase ch
                           (1 1)
                           (0 0)
+                          (#\O 1)     ; "Capital Oh" is used only by tests.
                           (#\# 1)
                           (#\. 0))))
         finally (return image)))
@@ -2276,6 +2277,16 @@ INDEX is in the top row."
                    (- (array-dimension image 0) 2)
                    (- (array-dimension image 1) 2)))
 
+
+(defun pad-image (image)
+  (check-type image array2d)
+  (let ((padded (make-array (list (+ 2 (array-dimension image 0))
+                                  (+ 2 (array-dimension image 1)))
+                            :element-type 'bit
+                            :initial-element 0)))
+    (copy-into image padded 1 1)
+    padded))
+
 (defun trim-tile-grid (tile-grid)
   (let ((image-grid (make-array (array-dimensions tile-grid))))
     (loop for m below (array-dimension tile-grid 0) do
@@ -2285,14 +2296,8 @@ INDEX is in the top row."
                                       'image)))))
     image-grid))
 
-(defun placement-tiles (placement)
-  "Returns the tiles from the result of calling PLACE-TILES."
-  (multiple-value-bind (corner-product corners tiles) placement
-    (declare (ignore corner-product) (ignore corners))
-    tiles))
-
 (defun placement-to-image (placement)
-  (grid-to-image (trim-tile-grid (placement-tiles placement))))
+  (grid-to-image (trim-tile-grid placement)))
 
 (defun find-sea-monster (image)
   (let* ((sea-monster (sea-monster))
@@ -2320,28 +2325,55 @@ INDEX is in the top row."
 
   ;; permute-image should produce the eight possible variants of a given
   ;; image.
-  (assert (equalp (permute-image (parse-image #(#*111
-                                                #*100)))
-                  (list (parse-image #(#*111
-                                       #*100))
-                        (parse-image #(#*10
-                                       #*10
-                                       #*11))
-                        (parse-image #(#*001
-                                       #*111))
-                        (parse-image #(#*11
-                                       #*01
-                                       #*01))
-                        (parse-image #(#*100
-                                       #*111))
-                        (parse-image #(#*01
-                                       #*01
-                                       #*11))
-                        (parse-image #(#*111
-                                       #*001))
-                        (parse-image #(#*11
-                                       #*10
-                                       #*10)))))
+  (assert (equalp (permute-image (parse-image #("###"
+                                                "#.."
+                                                "...")))
+                  '(#2A((1 1 1)
+                        (1 0 0)
+                        (0 0 0))
+
+                    #2A((1 0 0)
+                        (1 0 0)
+                        (1 1 0))
+
+                    #2A((0 0 0)
+                        (0 0 1)
+                        (1 1 1))
+
+                    #2A((0 1 1)
+                        (0 0 1)
+                        (0 0 1))
+
+                    #2A((0 0 0)
+                        (1 0 0)
+                        (1 1 1))
+
+                    #2A((0 0 1)
+                        (0 0 1)
+                        (0 1 1))
+
+                    #2A((1 1 1)
+                        (0 0 1)
+                        (0 0 0))
+
+                    #2A((1 1 0)
+                        (1 0 0)
+                        (1 0 0)))))
+
+  ;; pad-image pads images with an edge of blank pixels.
+  (assert (equalp (parse-image '("..."
+                                 ".#."
+                                 "..."))
+                  (pad-image
+                   (parse-image '("#")))))
+
+
+  ;; trim-image removes the outermost pixels.
+  (assert (equalp (trim-image
+                   (parse-image '("..."
+                                  ".#."
+                                  "...")))
+                  (parse-image '("#"))))
 
   (let ((shifted))
     (each-shifted-image #'(lambda (img)
@@ -2400,4 +2432,38 @@ INDEX is in the top row."
   (assert (= 20899048083289 (part-one *example-input*)))
 
   ;; This is the answer to Part One.
-  (assert (= 18262194216271 (part-one *input*))))
+  (assert (= 18262194216271 (part-one *input*)))
+
+  ;; Assert that the image with the snakes in it, given in the problem
+  ;; statement, is produced with our placement code when given
+  ;; *EXAMPLE-INPUT*.
+  (assert (position
+           (parse-image '(".####...#####..#...###.."
+                          "#####..#..#.#.####..#.#."
+                          ".#.#...#.###...#.##.O#.."
+                          "#.O.##.OO#.#.OO.##.OOO##"
+                          "..#O.#O#.O##O..O.#O##.##"
+                          "...#.#..##.##...#..#..##"
+                          "#.##.#..#.#..#..##.#.#.."
+                          ".###.##.....#...###.#..."
+                          "#.####.#.#....##.#..#.#."
+                          "##...#..#....#..#...####"
+                          "..#.##...###..#.#####..#"
+                          "....#.##.#.#####....#..."
+                          "..##.##.###.....#.##..#."
+                          "#...#...###..####....##."
+                          ".#.##...#.##.#.#.###...#"
+                          "#.###.#..####...##..#..."
+                          "#.###...#.##...#.##O###."
+                          ".O##.#OO.###OO##..OOO##."
+                          "..O#.O..O..O.#O##O##.###"
+                          "#.#..##.########..#..##."
+                          "#.#####..#.#...##..#...."
+                          "#....##..#.#########..##"
+                          "#...#.....#..##...###.##"
+                          "#..###....##.#...##.##.#"))
+           (permute-image
+            (placement-to-image
+             (place-tiles
+              (parse-tiles *example-input*))))))
+  )
