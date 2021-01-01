@@ -1999,28 +1999,30 @@ Tile 3769:
                                        (0 #\.)))
                    finally (format t "~%")))))
 
-(defun format-placement (tiles)
-  (check-type tiles array2d)
-  (loop for m below (array-dimension tiles 0) do
+(defun format-spaced-image-row (images)
+  (loop for m below (array-dimension (elt images 0) 0) do
     (loop initially (format t "~&")
-          for n below (array-dimension tiles 1)
-          do (format t " ~D" (tile-id (aref tiles m n)))
-          finally (format t "~%")))
-  (loop
-    for m below (array-dimension tiles 0)
-    do (loop
-         finally (format t "~%")
-         for m2 below (tile-dimension (aref tiles m 0) 0)
-         do (loop
-              finally (format t "~%")
-              for n below (array-dimension tiles 1)
-              do (loop
-                   initially (format t " ")
-                   with tile = (aref tiles m n)
-                   for n2 below (tile-dimension tile 1)
-                   do (format t "~a" (ecase (tile-bit tile m2 n2)
-                                       (1 #\#)
-                                       (0 #\.))))))))
+          with need-space-p = nil
+          for image in images do
+            (progn
+              (if need-space-p
+                  (format t " ")
+                  (setq need-space-p t))
+              (loop for n below (array-dimension image 1) do
+                (format t "~c" (ecase (aref image m n)
+                                 (1 #\#)
+                                 (0 #\.))))))))
+
+(defun format-image-grid (image-grid)
+  (check-type image-grid array2d)
+  (format t "~&")
+  (loop for m below (array-dimension image-grid 0)
+        unless (zerop m)
+          do (format t "~%")
+        do (format-spaced-image-row
+            (loop for n below (array-dimension image-grid 1)
+                  collect (aref image-grid m n)))
+        do (format t "~%")))
 
 (defun tile-equal (tile-a tile-b)
   (and (= (tile-id tile-a)
@@ -2225,14 +2227,15 @@ INDEX is in the top row."
   (parse-image *sea-monster*))
 
 (defun grid-to-image (images)
+  (check-type images array2d)
   (labels ((stack-horizontal (a b)
              (stack-horizontal-array2d a b))
            (stack-vertical (a b)
              (stack-vertical-array2d a b)))
     (reduce
-     #'stack-horizontal
+     #'stack-vertical
      (loop for m below (array-dimension images 0)
-           collect (reduce #'stack-vertical
+           collect (reduce #'stack-horizontal
                            (loop for n below (array-dimension images 1)
                                  collect (aref images m n)))))))
 
@@ -2291,14 +2294,26 @@ INDEX is in the top row."
     (copy-into image padded 1 1)
     padded))
 
-(defun trim-tile-grid (tile-grid)
+(defun tile-grid-to-image-grid (tile-grid)
   (let ((image-grid (make-array (array-dimensions tile-grid))))
     (loop for m below (array-dimension tile-grid 0) do
       (loop for n below (array-dimension tile-grid 1) do
         (setf (aref image-grid m n)
-              (trim-image (slot-value (aref tile-grid m n)
-                                      'image)))))
+              (slot-value (aref tile-grid m n) 'image))))
     image-grid))
+
+(defun trim-image-grid (image-grid)
+  (check-type image-grid array2d)
+  (let ((trimmed-grid (make-array (array-dimensions image-grid))))
+    (loop for m below (array-dimension image-grid 0) do
+      (loop for n below (array-dimension image-grid 1) do
+        (setf (aref trimmed-grid m n)
+              (trim-image (aref image-grid m n)))))
+    trimmed-grid))
+
+(defun trim-tile-grid (tile-grid)
+  (trim-image-grid
+   (tile-grid-to-image-grid tile-grid)))
 
 (defun placement-to-image (placement)
   (grid-to-image (trim-tile-grid placement)))
@@ -2381,22 +2396,26 @@ INDEX is in the top row."
   ;; grid-to-image stacks the images as appropriate.
   (assert
    (equalp
-    (parse-image '("........"
-                   "..#..#.."
-                   ".#....#."
-                   "........"
-                   "........"
-                   ".#....#."
-                   "..#..#.."
-                   "........"))
+    (parse-image '("....#..#...."
+                   "..#.#..#.#.."
+                   ".#..#..#..#."
+                   "....#..#...."
+                   ".....##....."
+                   ".#...##...#."
+                   "..#..##..#.."
+                   ".....##....."))
     (grid-to-image
      (make-array
-      '(2 2)
+      '(2 3)
       :initial-contents
       `((,(parse-image #("...."
                          "..#."
                          ".#.."
                          "...."))
+          ,(parse-image #("#..#"
+                          "#..#"
+                          "#..#"
+                          "#..#"))
           ,(parse-image #("...."
                           ".#.."
                           "..#."
@@ -2405,6 +2424,10 @@ INDEX is in the top row."
                          ".#.."
                          "..#."
                          "...."))
+          ,(parse-image #(".##."
+                          ".##."
+                          ".##."
+                          ".##."))
           ,(parse-image #("...."
                           "..#."
                           ".#.."
@@ -2444,46 +2467,134 @@ INDEX is in the top row."
   ;; in the problem statement.
   (assert (string=
            (with-output-to-string (*standard-output*)
-             (format-placement (place-tiles
-                                (parse-tiles
-                                 *example-input*))))
-           " 1951 2311 3079
- 2729 1427 2473
- 2971 1489 1171
- #...##.#.. ..###..### #.#.#####.
- ..#.#..#.# ###...#.#. .#..######
- .###....#. ..#....#.. ..#.......
- ###.##.##. .#.#.#..## ######....
- .###.##### ##...#.### ####.#..#.
- .##.#....# ##.##.###. .#...#.##.
- #...###### ####.#...# #.#####.##
- .....#..## #...##..#. ..#.###...
- #.####...# ##..#..... ..#.......
- #.##...##. ..##.#..#. ..#.###...
+             (format-image-grid
+              (tile-grid-to-image-grid
+               (place-tiles
+                (parse-tiles
+                 *example-input*)))))
+           "#...##.#.. ..###..### #.#.#####.
+..#.#..#.# ###...#.#. .#..######
+.###....#. ..#....#.. ..#.......
+###.##.##. .#.#.#..## ######....
+.###.##### ##...#.### ####.#..#.
+.##.#....# ##.##.###. .#...#.##.
+#...###### ####.#...# #.#####.##
+.....#..## #...##..#. ..#.###...
+#.####...# ##..#..... ..#.......
+#.##...##. ..##.#..#. ..#.###...
 
- #.##...##. ..##.#..#. ..#.###...
- ##..#.##.. ..#..###.# ##.##....#
- ##.####... .#.####.#. ..#.###..#
- ####.#.#.. ...#.##### ###.#..###
- .#.####... ...##..##. .######.##
- .##..##.#. ....#...## #.#.#.#...
- ....#..#.# #.#.#.##.# #.###.###.
- ..#.#..... .#.##.#..# #.###.##..
- ####.#.... .#..#.##.. .######...
- ...#.#.#.# ###.##.#.. .##...####
+#.##...##. ..##.#..#. ..#.###...
+##..#.##.. ..#..###.# ##.##....#
+##.####... .#.####.#. ..#.###..#
+####.#.#.. ...#.##### ###.#..###
+.#.####... ...##..##. .######.##
+.##..##.#. ....#...## #.#.#.#...
+....#..#.# #.#.#.##.# #.###.###.
+..#.#..... .#.##.#..# #.###.##..
+####.#.... .#..#.##.. .######...
+...#.#.#.# ###.##.#.. .##...####
 
- ...#.#.#.# ###.##.#.. .##...####
- ..#.#.###. ..##.##.## #..#.##..#
- ..####.### ##.#...##. .#.#..#.##
- #..#.#..#. ...#.#.#.. .####.###.
- .#..####.# #..#.#.#.# ####.###..
- .#####..## #####...#. .##....##.
- ##.##..#.. ..#...#... .####...#.
- #.#.###... .##..##... .####.##.#
- #...###... ..##...#.. ...#..####
- ..#.#....# ##.#.#.... ...##.....
-
+...#.#.#.# ###.##.#.. .##...####
+..#.#.###. ..##.##.## #..#.##..#
+..####.### ##.#...##. .#.#..#.##
+#..#.#..#. ...#.#.#.. .####.###.
+.#..####.# #..#.#.#.# ####.###..
+.#####..## #####...#. .##....##.
+##.##..#.. ..#...#... .####...#.
+#.#.###... .##..##... .####.##.#
+#...###... ..##...#.. ...#..####
+..#.#....# ##.#.#.... ...##.....
 "))
+
+  (assert (string=
+           (with-output-to-string (*standard-output*)
+             (format-image-grid
+              (trim-tile-grid
+               (place-tiles
+                (parse-tiles
+                 *example-input*)))))
+           ".#.#..#. ##...#.# #..#####
+###....# .#....#. .#......
+##.##.## #.#.#..# #####...
+###.#### #...#.## ###.#..#
+##.#.... #.##.### #...#.##
+...##### ###.#... .#####.#
+....#..# ...##..# .#.###..
+.####... #..#.... .#......
+
+#..#.##. .#..###. #.##....
+#.####.. #.####.# .#.###..
+###.#.#. ..#.#### ##.#..##
+#.####.. ..##..## ######.#
+##..##.# ...#...# .#.#.#..
+...#..#. .#.#.##. .###.###
+.#.#.... #.##.#.. .###.##.
+###.#... #..#.##. ######..
+
+.#.#.### .##.##.# ..#.##..
+.####.## #.#...## #.#..#.#
+..#.#..# ..#.#.#. ####.###
+#..####. ..#.#.#. ###.###.
+#####..# ####...# ##....##
+#.##..#. .#...#.. ####...#
+.#.###.. ##..##.. ####.##.
+...###.. .##...#. ..#..###
+"))
+
+  (assert (equalp
+           (stack-horizontal-array2d
+            (parse-image '("#."
+                           "##"))
+            (parse-image '("##"
+                           ".#")))
+           (parse-image '("#.##"
+                          "##.#"))))
+
+  (assert (equalp
+           (stack-vertical-array2d
+            (parse-image '("#."
+                           "##"))
+            (parse-image '("##"
+                           ".#")))
+           (parse-image '("#."
+                          "##"
+                          "##"
+                          ".#"))))
+
+  ;; Assert that given the example input our placed and trimmed tiles
+  ;; result in the same image given in the problem statement.
+  (assert (eql nil (mismatch
+           (with-output-to-string (*standard-output*)
+             (format-image
+              (placement-to-image
+               (place-tiles
+                (parse-tiles
+                 *example-input*)))))
+           ".#.#..#.##...#.##..#####
+###....#.#....#..#......
+##.##.###.#.#..######...
+###.#####...#.#####.#..#
+##.#....#.##.####...#.##
+...########.#....#####.#
+....#..#...##..#.#.###..
+.####...#..#.....#......
+#..#.##..#..###.#.##....
+#.####..#.####.#.#.###..
+###.#.#...#.######.#..##
+#.####....##..########.#
+##..##.#...#...#.#.#.#..
+...#..#..#.#.##..###.###
+.#.#....#.##.#...###.##.
+###.#...#..#.##.######..
+.#.#.###.##.##.#..#.##..
+.####.###.#...###.#..#.#
+..#.#..#..#.#.#.####.###
+#..####...#.#.#.###.###.
+#####..#####...###....##
+#.##..#..#...#..####...#
+.#.###..##..##..####.##.
+...###...##...#...#..###
+")))
 
   ;; Assert that the image with the snakes in it, given in the problem
   ;; statement, is produced with our placement code when given
