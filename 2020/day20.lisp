@@ -2269,9 +2269,9 @@ INDEX is in the top row."
                             (let ((masked (bit-and shifted image)))
                               ;; (format t "~&masked~%")
                               ;; (format-image masked)
-                              (assert (equalp shifted (mirror-array2d (mirror-array2d shifted))))
+                              (assert (equalp shifted (mirror-array2d
+                                                       (mirror-array2d shifted))))
                               (when (equalp shifted masked)
-                                (break)
                                 (push shifted found))))
                         mask
                         (array-dimensions image))
@@ -2318,19 +2318,34 @@ INDEX is in the top row."
 (defun placement-to-image (placement)
   (grid-to-image (trim-tile-grid placement)))
 
-(defun find-sea-monster (image)
+(defun find-sea-monsters (image)
   (let* ((sea-monster (sea-monster))
          (images (permute-image image)))
-    (format t "~&Sea Monster~%")
-    (format-image sea-monster)
-    (loop for i below (length images)
-          do (format t "~&~%Image ~D~%" i)
-          do (format-image (elt images i))
-          finally (format t "~&"))
+    ;; (format t "~&Sea Monster~%")
+    ;; (format-image sea-monster)
+    ;; (loop for i below (length images)
+    ;;       do (format t "~&~%Image ~D~%" i)
+    ;;       do (format-image (elt images i))
+    ;;       finally (format t "~&"))
     (loop for image in images
           for mask = (find-subimage-mask sea-monster image)
           if mask do
-            (return mask))))
+            (return (list image mask)))))
+
+(defun image-bit-count (image)
+  (reduce #'+
+          (make-array
+           (reduce #'* (array-dimensions image))
+           :element-type 'bit
+           :displaced-to image)))
+
+(defun part-two (input)
+  (destructuring-bind (image snakes) (find-sea-monsters
+                                      (placement-to-image
+    (place-tiles
+     (parse-tiles input))))
+    (- (image-bit-count image)
+       (image-bit-count snakes))))
 
 (defun test ()
   ;; parse-image supports row lists and row arrays.  Rows themselves
@@ -2432,11 +2447,6 @@ INDEX is in the top row."
                           "..#."
                           ".#.."
                           "...."))))))))
-
-  (assert (= 20899048083289 (part-one *example-input*)))
-
-  ;; This is the answer to Part One.
-  (assert (= 18262194216271 (part-one *input*)))
 
   ;; Assert that the example's tile 1951, when permuted, includes the
   ;; orientation present in the example solution's top left corner.
@@ -2596,36 +2606,45 @@ INDEX is in the top row."
 ...###...##...#...#..###
 ")))
 
-  ;; Assert that the image with the snakes in it, given in the problem
-  ;; statement, is produced with our placement code when given
-  ;; *EXAMPLE-INPUT*.
-  (assert (position
-           (parse-image '(".####...#####..#...###.."
-                          "#####..#..#.#.####..#.#."
-                          ".#.#...#.###...#.##.O#.."
-                          "#.O.##.OO#.#.OO.##.OOO##"
-                          "..#O.#O#.O##O..O.#O##.##"
-                          "...#.#..##.##...#..#..##"
-                          "#.##.#..#.#..#..##.#.#.."
-                          ".###.##.....#...###.#..."
-                          "#.####.#.#....##.#..#.#."
-                          "##...#..#....#..#...####"
-                          "..#.##...###..#.#####..#"
-                          "....#.##.#.#####....#..."
-                          "..##.##.###.....#.##..#."
-                          "#...#...###..####....##."
-                          ".#.##...#.##.#.#.###...#"
-                          "#.###.#..####...##..#..."
-                          "#.###...#.##...#.##O###."
-                          ".O##.#OO.###OO##..OOO##."
-                          "..O#.O..O..O.#O##O##.###"
-                          "#.#..##.########..#..##."
-                          "#.#####..#.#...##..#...."
-                          "#....##..#.#########..##"
-                          "#...#.....#..##...###.##"
-                          "#..###....##.#...##.##.#"))
-           (permute-image
-            (placement-to-image
-             (place-tiles
-              (parse-tiles *example-input*))))))
-  )
+  (destructuring-bind (image snakes) (find-sea-monsters
+                                      (placement-to-image
+                                       (place-tiles
+                                        (parse-tiles
+                                         *example-input*))))
+    (assert (equalp
+             snakes
+             (parse-image
+              '("........................"
+                "........................"
+                "....................#..."
+                "..#....##....##....###.."
+                "...#..#..#..#..#..#....."
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "...................#...."
+                ".#....##....##....###..."
+                "..#..#..#..#..#..#......"
+                "........................"
+                "........................"
+                "........................"
+                "........................"
+                "........................"))))
+
+    (assert (= 30 (image-bit-count snakes)))
+    (assert (= 303 (image-bit-count image))))
+
+  (assert (= 20899048083289 (part-one *example-input*)))
+  (assert (= 273 (part-two *example-input*)))
+
+  ;; These are the answers to Part One and Two.
+  (assert (= 18262194216271 (part-one *input*)))
+  (assert (= 2023 (part-two *input*))))
