@@ -1,3 +1,25 @@
+;;;; Advent of Code 2020 Day 20.
+;;;;
+;;;; I found this problem surprisingly difficult.  Primary lesson learned:
+;;;; introduce and use types early.  In this case, we're dealing with
+;;;; various operations on bitmaps and I initially wrote a lot of code
+;;;; dealing with (x y) and (height width) args, using multi-dimensional
+;;;; arrays as my "image" type.  I haven't done much with defstruct and
+;;;; defclass because I wanted to see how far lists and arrays could take
+;;;; me.  This approach was particularly error prone on this problem, and I
+;;;; lost a lot of time looking for bugs that amounted to transposition
+;;;; errors and other typos.  As I lifted the level of abstraction up many
+;;;; of these bugs turned into compile time or run time errors, or were
+;;;; easier to spot when reading code.
+;;;;
+;;;; So, the end result is that this code is over designed for an Advent of
+;;;; Code solution.  I was exploring CommonLisp bit vectors/arrays, custom
+;;;; type printerers (PRINT-OBJECT), bit vector read syntax, etc.
+;;;;
+;;;; Note to self: my first solution used a multi-dimensional bit array.
+;;;; When I switched to one dimensional bit arrays the compiler (SBCL)
+;;;; generated code that ran roughly 10-20 times faster.
+
 (defpackage #:ma-aoc-2020/day20
   (:use #:common-lisp))
 (in-package #:ma-aoc-2020/day20)
